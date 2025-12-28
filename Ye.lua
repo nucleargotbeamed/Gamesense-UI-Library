@@ -1,6 +1,6 @@
 --[[
     Skeet/Gamesense Style UI Library for Roblox
-    Recreation of the CS:GO/CS2 cheat menu aesthetic
+    Complete Working Version with Z-Index Fixes
 ]]
 
 local SkeetLib = {}
@@ -12,65 +12,41 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
+local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
 
 local Player = Players.LocalPlayer
 local Mouse = Player:GetMouse()
 
 -- Theme Colors (Exact Skeet/Gamesense colors)
 local Theme = {
-    -- Main colors
     WindowBackground = Color3.fromRGB(24, 24, 24),
     WindowBorder = Color3.fromRGB(40, 40, 40),
     TitleBar = Color3.fromRGB(30, 30, 30),
-    
-    -- Tab colors
     TabBackground = Color3.fromRGB(35, 35, 35),
     TabActive = Color3.fromRGB(45, 45, 45),
     TabHover = Color3.fromRGB(40, 40, 40),
     TabBorder = Color3.fromRGB(50, 50, 50),
-    
-    -- Section/Groupbox colors
     GroupboxBackground = Color3.fromRGB(32, 32, 32),
     GroupboxBorder = Color3.fromRGB(45, 45, 45),
     GroupboxTitle = Color3.fromRGB(180, 180, 180),
-    
-    -- Element colors
     ElementBackground = Color3.fromRGB(40, 40, 40),
     ElementBackgroundHover = Color3.fromRGB(45, 45, 45),
     ElementBorder = Color3.fromRGB(55, 55, 55),
-    
-    -- Text colors
     TextPrimary = Color3.fromRGB(200, 200, 200),
     TextSecondary = Color3.fromRGB(140, 140, 140),
     TextDisabled = Color3.fromRGB(80, 80, 80),
-    
-    -- Accent colors
-    Accent = Color3.fromRGB(114, 137, 218), -- Skeet blue
+    Accent = Color3.fromRGB(114, 137, 218),
     AccentDark = Color3.fromRGB(90, 110, 180),
     AccentLight = Color3.fromRGB(130, 155, 235),
-    
-    -- Toggle colors
     ToggleEnabled = Color3.fromRGB(114, 137, 218),
     ToggleDisabled = Color3.fromRGB(50, 50, 50),
     ToggleBorder = Color3.fromRGB(60, 60, 60),
-    
-    -- Slider colors
     SliderBackground = Color3.fromRGB(30, 30, 30),
     SliderFill = Color3.fromRGB(114, 137, 218),
-    
-    -- Dropdown colors
     DropdownBackground = Color3.fromRGB(35, 35, 35),
     DropdownHover = Color3.fromRGB(45, 45, 45),
-    
-    -- Rainbow gradient colors for top bar
-    RainbowColors = {
-        Color3.fromRGB(255, 0, 0),
-        Color3.fromRGB(255, 127, 0),
-        Color3.fromRGB(255, 255, 0),
-        Color3.fromRGB(0, 255, 0),
-        Color3.fromRGB(0, 0, 255),
-        Color3.fromRGB(139, 0, 255)
-    }
 }
 
 -- Utility Functions
@@ -148,10 +124,14 @@ function SkeetLib:CreateWindow(config)
     config = config or {}
     local windowName = config.Name or "Skeet"
     local windowSize = config.Size or UDim2.new(0, 610, 0, 460)
+    local configFolder = config.ConfigFolder or "SkeetConfigs"
     
     local Window = {}
     Window.Tabs = {}
     Window.ActiveTab = nil
+    Window.Flags = {} -- Store all element values
+    Window.Elements = {} -- Store element references
+    Window.ConfigFolder = configFolder
     
     -- Create ScreenGui
     local ScreenGui = Create("ScreenGui", {
@@ -160,13 +140,21 @@ function SkeetLib:CreateWindow(config)
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     })
     
-    -- Try to parent to CoreGui, fallback to PlayerGui
     pcall(function()
         ScreenGui.Parent = CoreGui
     end)
     if not ScreenGui.Parent then
         ScreenGui.Parent = Player:WaitForChild("PlayerGui")
     end
+    
+    -- Dropdown Container (renders above everything)
+    local DropdownContainer = Create("Frame", {
+        Name = "DropdownContainer",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 1, 0),
+        ZIndex = 100,
+        Parent = ScreenGui
+    })
     
     -- Main Window Frame
     local MainFrame = Create("Frame", {
@@ -208,6 +196,7 @@ function SkeetLib:CreateWindow(config)
     task.spawn(function()
         while ScreenGui.Parent do
             for i = 0, 1, 0.01 do
+                if not ScreenGui.Parent then break end
                 RainbowGradient.Offset = Vector2.new(i, 0)
                 task.wait(0.05)
             end
@@ -284,6 +273,8 @@ function SkeetLib:CreateWindow(config)
     end)
     
     local minimized = false
+    local ContentHolder = nil -- Will be set later
+    
     MinimizeButton.MouseButton1Click:Connect(function()
         minimized = not minimized
         if minimized then
@@ -343,7 +334,7 @@ function SkeetLib:CreateWindow(config)
         Parent = TabContainer
     })
     
-    local TabLayout = Create("UIListLayout", {
+    Create("UIListLayout", {
         FillDirection = Enum.FillDirection.Horizontal,
         Padding = UDim.new(0, 5),
         SortOrder = Enum.SortOrder.LayoutOrder,
@@ -370,7 +361,7 @@ function SkeetLib:CreateWindow(config)
         Parent = SubTabContainer
     })
     
-    local SubTabLayout = Create("UIListLayout", {
+    Create("UIListLayout", {
         FillDirection = Enum.FillDirection.Horizontal,
         Padding = UDim.new(0, 5),
         SortOrder = Enum.SortOrder.LayoutOrder,
@@ -387,18 +378,168 @@ function SkeetLib:CreateWindow(config)
         ClipsDescendants = true,
         Parent = MainFrame
     })
+    ContentHolder = ContentContainer
+    
+    -- Close all dropdowns when clicking elsewhere
+    local activeDropdown = nil
+    
+    UserInputService.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            task.defer(function()
+                if activeDropdown and activeDropdown.CloseDropdown then
+                    -- Check if click is outside dropdown
+                    local mousePos = UserInputService:GetMouseLocation()
+                    -- Small delay to let the dropdown button process first
+                end
+            end)
+        end
+    end)
+    
+    -- Config Functions
+    function Window:SaveConfig(configName)
+        local configData = {}
+        
+        for flagName, flagValue in pairs(Window.Flags) do
+            if type(flagValue) == "table" then
+                -- Handle Color3
+                if flagValue.R and flagValue.G and flagValue.B then
+                    configData[flagName] = {
+                        Type = "Color3",
+                        R = flagValue.R,
+                        G = flagValue.G,
+                        B = flagValue.B
+                    }
+                else
+                    -- Handle multi-select dropdown
+                    configData[flagName] = {
+                        Type = "Table",
+                        Value = flagValue
+                    }
+                end
+            elseif typeof(flagValue) == "Color3" then
+                configData[flagName] = {
+                    Type = "Color3",
+                    R = flagValue.R,
+                    G = flagValue.G,
+                    B = flagValue.B
+                }
+            elseif typeof(flagValue) == "EnumItem" then
+                configData[flagName] = {
+                    Type = "Enum",
+                    EnumType = tostring(flagValue.EnumType),
+                    Name = flagValue.Name
+                }
+            else
+                configData[flagName] = {
+                    Type = typeof(flagValue),
+                    Value = flagValue
+                }
+            end
+        end
+        
+        local success, encoded = pcall(function()
+            return HttpService:JSONEncode(configData)
+        end)
+        
+        if success then
+            -- Try to save using writefile (executor function)
+            local saveSuccess = pcall(function()
+                if not isfolder(configFolder) then
+                    makefolder(configFolder)
+                end
+                writefile(configFolder .. "/" .. configName .. ".json", encoded)
+            end)
+            
+            if saveSuccess then
+                return true, "Config saved successfully!"
+            else
+                -- Fallback: copy to clipboard
+                pcall(function()
+                    setclipboard(encoded)
+                end)
+                return true, "Config copied to clipboard (file save not available)"
+            end
+        else
+            return false, "Failed to encode config"
+        end
+    end
+    
+    function Window:LoadConfig(configName)
+        local configData = nil
+        
+        -- Try to load from file
+        local loadSuccess = pcall(function()
+            if isfile(configFolder .. "/" .. configName .. ".json") then
+                local content = readfile(configFolder .. "/" .. configName .. ".json")
+                configData = HttpService:JSONDecode(content)
+            end
+        end)
+        
+        if not loadSuccess or not configData then
+            return false, "Config not found or failed to load"
+        end
+        
+        -- Apply config
+        for flagName, flagData in pairs(configData) do
+            if Window.Elements[flagName] then
+                local element = Window.Elements[flagName]
+                local value
+                
+                if flagData.Type == "Color3" then
+                    value = Color3.new(flagData.R, flagData.G, flagData.B)
+                elseif flagData.Type == "Enum" then
+                    value = Enum[flagData.EnumType][flagData.Name]
+                elseif flagData.Type == "Table" then
+                    value = flagData.Value
+                else
+                    value = flagData.Value
+                end
+                
+                if element.Set then
+                    element:Set(value)
+                end
+            end
+        end
+        
+        return true, "Config loaded successfully!"
+    end
+    
+    function Window:GetConfigs()
+        local configs = {}
+        
+        pcall(function()
+            if isfolder(configFolder) then
+                for _, file in pairs(listfiles(configFolder)) do
+                    local name = file:match("([^/\\]+)%.json$")
+                    if name then
+                        table.insert(configs, name)
+                    end
+                end
+            end
+        end)
+        
+        return configs
+    end
+    
+    function Window:DeleteConfig(configName)
+        local success = pcall(function()
+            if isfile(configFolder .. "/" .. configName .. ".json") then
+                delfile(configFolder .. "/" .. configName .. ".json")
+            end
+        end)
+        
+        return success
+    end
     
     -- Tab Creation Function
     function Window:CreateTab(tabConfig)
         tabConfig = tabConfig or {}
         local tabName = tabConfig.Name or "Tab"
-        local tabIcon = tabConfig.Icon or nil
         
         local Tab = {}
         Tab.SubTabs = {}
         Tab.ActiveSubTab = nil
         
-        -- Tab Button
         local TabButton = Create("TextButton", {
             Name = tabName .. "Tab",
             BackgroundColor3 = Theme.TabActive,
@@ -413,7 +554,6 @@ function SkeetLib:CreateWindow(config)
         })
         AddCorner(TabButton, 3)
         
-        -- Tab Content Page
         local TabPage = Create("Frame", {
             Name = tabName .. "Page",
             BackgroundTransparency = 1,
@@ -422,7 +562,6 @@ function SkeetLib:CreateWindow(config)
             Parent = ContentContainer
         })
         
-        -- Sub Tab Holder for this tab
         local ThisSubTabHolder = Create("Frame", {
             Name = tabName .. "SubTabs",
             BackgroundTransparency = 1,
@@ -431,7 +570,7 @@ function SkeetLib:CreateWindow(config)
             Parent = SubTabHolder
         })
         
-        local ThisSubTabLayout = Create("UIListLayout", {
+        Create("UIListLayout", {
             FillDirection = Enum.FillDirection.Horizontal,
             Padding = UDim.new(0, 5),
             SortOrder = Enum.SortOrder.LayoutOrder,
@@ -440,7 +579,6 @@ function SkeetLib:CreateWindow(config)
         })
         
         local function SelectTab()
-            -- Deselect all tabs
             for _, existingTab in pairs(Window.Tabs) do
                 existingTab.Button.BackgroundTransparency = 1
                 existingTab.Button.TextColor3 = Theme.TextSecondary
@@ -448,14 +586,12 @@ function SkeetLib:CreateWindow(config)
                 existingTab.SubTabHolder.Visible = false
             end
             
-            -- Select this tab
             TabButton.BackgroundTransparency = 0
             TabButton.TextColor3 = Theme.TextPrimary
             TabPage.Visible = true
             ThisSubTabHolder.Visible = true
             Window.ActiveTab = Tab
             
-            -- Select first subtab if available
             if Tab.SubTabs[1] then
                 Tab.SubTabs[1].Select()
             end
@@ -475,7 +611,6 @@ function SkeetLib:CreateWindow(config)
             end
         end)
         
-        -- SubTab Creation Function
         function Tab:CreateSubTab(subTabConfig)
             subTabConfig = subTabConfig or {}
             local subTabName = subTabConfig.Name or "SubTab"
@@ -483,7 +618,6 @@ function SkeetLib:CreateWindow(config)
             local SubTab = {}
             SubTab.Columns = {}
             
-            -- SubTab Button
             local SubTabButton = Create("TextButton", {
                 Name = subTabName .. "SubTab",
                 BackgroundColor3 = Theme.TabActive,
@@ -498,7 +632,6 @@ function SkeetLib:CreateWindow(config)
             })
             AddCorner(SubTabButton, 2)
             
-            -- SubTab Content Page
             local SubTabPage = Create("Frame", {
                 Name = subTabName .. "SubPage",
                 BackgroundTransparency = 1,
@@ -507,8 +640,7 @@ function SkeetLib:CreateWindow(config)
                 Parent = TabPage
             })
             
-            -- Column Layout
-            local ColumnLayout = Create("UIListLayout", {
+            Create("UIListLayout", {
                 FillDirection = Enum.FillDirection.Horizontal,
                 Padding = UDim.new(0, 8),
                 SortOrder = Enum.SortOrder.LayoutOrder,
@@ -516,14 +648,12 @@ function SkeetLib:CreateWindow(config)
             })
             
             local function SelectSubTab()
-                -- Deselect all subtabs
                 for _, existingSubTab in pairs(Tab.SubTabs) do
                     existingSubTab.Button.BackgroundTransparency = 1
                     existingSubTab.Button.TextColor3 = Theme.TextSecondary
                     existingSubTab.Page.Visible = false
                 end
                 
-                -- Select this subtab
                 SubTabButton.BackgroundTransparency = 0
                 SubTabButton.TextColor3 = Theme.TextPrimary
                 SubTabPage.Visible = true
@@ -544,10 +674,7 @@ function SkeetLib:CreateWindow(config)
                 end
             end)
             
-            -- Column Creation Function
-            function SubTab:CreateColumn(columnConfig)
-                columnConfig = columnConfig or {}
-                
+            function SubTab:CreateColumn()
                 local Column = {}
                 Column.Groupboxes = {}
                 
@@ -566,6 +693,7 @@ function SkeetLib:CreateWindow(config)
                     ScrollBarThickness = 3,
                     ScrollBarImageColor3 = Theme.Accent,
                     BorderSizePixel = 0,
+                    AutomaticCanvasSize = Enum.AutomaticSize.Y,
                     Parent = ColumnFrame
                 })
                 
@@ -575,11 +703,6 @@ function SkeetLib:CreateWindow(config)
                     Parent = ColumnScrollFrame
                 })
                 
-                ColumnScrollLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                    ColumnScrollFrame.CanvasSize = UDim2.new(0, 0, 0, ColumnScrollLayout.AbsoluteContentSize.Y + 5)
-                end)
-                
-                -- Groupbox Creation Function
                 function Column:CreateGroupbox(groupboxConfig)
                     groupboxConfig = groupboxConfig or {}
                     local groupboxName = groupboxConfig.Name or "Groupbox"
@@ -596,7 +719,7 @@ function SkeetLib:CreateWindow(config)
                     AddCorner(GroupboxFrame, 3)
                     AddStroke(GroupboxFrame, Theme.GroupboxBorder, 1)
                     
-                    local GroupboxTitle = Create("TextLabel", {
+                    Create("TextLabel", {
                         Name = "Title",
                         BackgroundTransparency = 1,
                         Position = UDim2.new(0, 10, 0, 0),
@@ -618,27 +741,30 @@ function SkeetLib:CreateWindow(config)
                         Parent = GroupboxFrame
                     })
                     
-                    local ContentLayout = Create("UIListLayout", {
+                    Create("UIListLayout", {
                         Padding = UDim.new(0, 4),
                         SortOrder = Enum.SortOrder.LayoutOrder,
                         Parent = GroupboxContent
                     })
                     
-                    local ContentPadding = Create("UIPadding", {
+                    Create("UIPadding", {
                         PaddingLeft = UDim.new(0, 8),
                         PaddingRight = UDim.new(0, 8),
                         PaddingBottom = UDim.new(0, 8),
                         Parent = GroupboxContent
                     })
                     
-                    -- Toggle/Checkbox
+                    -- Toggle
                     function Groupbox:AddToggle(toggleConfig)
                         toggleConfig = toggleConfig or {}
                         local toggleName = toggleConfig.Name or "Toggle"
+                        local flag = toggleConfig.Flag or toggleName
                         local default = toggleConfig.Default or false
                         local callback = toggleConfig.Callback or function() end
                         
-                        local Toggle = {Value = default}
+                        local Toggle = {Value = default, Type = "Toggle"}
+                        Window.Flags[flag] = default
+                        Window.Elements[flag] = Toggle
                         
                         local ToggleFrame = Create("Frame", {
                             Name = toggleName .. "Toggle",
@@ -658,7 +784,7 @@ function SkeetLib:CreateWindow(config)
                         AddCorner(ToggleBox, 2)
                         AddStroke(ToggleBox, Theme.ToggleBorder, 1)
                         
-                        local ToggleLabel = Create("TextLabel", {
+                        Create("TextLabel", {
                             Name = "Label",
                             BackgroundTransparency = 1,
                             Position = UDim2.new(0, 18, 0, 0),
@@ -681,6 +807,7 @@ function SkeetLib:CreateWindow(config)
                         
                         local function UpdateToggle()
                             Tween(ToggleBox, {BackgroundColor3 = Toggle.Value and Theme.ToggleEnabled or Theme.ToggleDisabled}, 0.15)
+                            Window.Flags[flag] = Toggle.Value
                         end
                         
                         ToggleButton.MouseButton1Click:Connect(function()
@@ -695,6 +822,10 @@ function SkeetLib:CreateWindow(config)
                             callback(Toggle.Value)
                         end
                         
+                        function Toggle:Get()
+                            return Toggle.Value
+                        end
+                        
                         UpdateToggle()
                         return Toggle
                     end
@@ -703,6 +834,7 @@ function SkeetLib:CreateWindow(config)
                     function Groupbox:AddSlider(sliderConfig)
                         sliderConfig = sliderConfig or {}
                         local sliderName = sliderConfig.Name or "Slider"
+                        local flag = sliderConfig.Flag or sliderName
                         local min = sliderConfig.Min or 0
                         local max = sliderConfig.Max or 100
                         local default = sliderConfig.Default or min
@@ -710,7 +842,9 @@ function SkeetLib:CreateWindow(config)
                         local suffix = sliderConfig.Suffix or ""
                         local callback = sliderConfig.Callback or function() end
                         
-                        local Slider = {Value = default}
+                        local Slider = {Value = default, Type = "Slider"}
+                        Window.Flags[flag] = default
+                        Window.Elements[flag] = Slider
                         
                         local SliderFrame = Create("Frame", {
                             Name = sliderName .. "Slider",
@@ -719,7 +853,7 @@ function SkeetLib:CreateWindow(config)
                             Parent = GroupboxContent
                         })
                         
-                        local SliderLabel = Create("TextLabel", {
+                        Create("TextLabel", {
                             Name = "Label",
                             BackgroundTransparency = 1,
                             Position = UDim2.new(0, 0, 0, 0),
@@ -774,14 +908,21 @@ function SkeetLib:CreateWindow(config)
                         local sliding = false
                         
                         local function UpdateSlider(input)
-                            local pos = UDim2.new(math.clamp((input.Position.X - SliderBack.AbsolutePosition.X) / SliderBack.AbsoluteSize.X, 0, 1), 0, 1, 0)
-                            SliderFill.Size = pos
+                            local percent = math.clamp((input.Position.X - SliderBack.AbsolutePosition.X) / SliderBack.AbsoluteSize.X, 0, 1)
+                            SliderFill.Size = UDim2.new(percent, 0, 1, 0)
                             
-                            local value = math.floor((min + (pos.X.Scale * (max - min))) / increment + 0.5) * increment
+                            local value = math.floor((min + (percent * (max - min))) / increment + 0.5) * increment
                             value = math.clamp(value, min, max)
+                            
+                            -- Handle decimal precision
+                            if increment < 1 then
+                                local decimals = #tostring(increment):match("%.(%d+)") or 0
+                                value = tonumber(string.format("%." .. decimals .. "f", value))
+                            end
                             
                             Slider.Value = value
                             SliderValue.Text = tostring(value) .. suffix
+                            Window.Flags[flag] = value
                             callback(value)
                         end
                         
@@ -805,28 +946,45 @@ function SkeetLib:CreateWindow(config)
                         end)
                         
                         function Slider:Set(value)
-                            Slider.Value = math.clamp(value, min, max)
-                            SliderFill.Size = UDim2.new((Slider.Value - min) / (max - min), 0, 1, 0)
-                            SliderValue.Text = tostring(Slider.Value) .. suffix
-                            callback(Slider.Value)
+                            value = math.clamp(value, min, max)
+                            Slider.Value = value
+                            SliderFill.Size = UDim2.new((value - min) / (max - min), 0, 1, 0)
+                            SliderValue.Text = tostring(value) .. suffix
+                            Window.Flags[flag] = value
+                            callback(value)
+                        end
+                        
+                        function Slider:Get()
+                            return Slider.Value
                         end
                         
                         return Slider
                     end
                     
-                    -- Dropdown
+                    -- Dropdown (Fixed Z-Index)
                     function Groupbox:AddDropdown(dropdownConfig)
                         dropdownConfig = dropdownConfig or {}
                         local dropdownName = dropdownConfig.Name or "Dropdown"
+                        local flag = dropdownConfig.Flag or dropdownName
                         local options = dropdownConfig.Options or {}
                         local default = dropdownConfig.Default or (options[1] or "")
                         local multiSelect = dropdownConfig.MultiSelect or false
                         local callback = dropdownConfig.Callback or function() end
                         
-                        local Dropdown = {Value = multiSelect and {} or default, Open = false}
-                        if multiSelect and type(default) == "table" then
-                            Dropdown.Value = default
+                        local Dropdown = {Value = multiSelect and {} or default, Open = false, Type = "Dropdown"}
+                        
+                        if multiSelect then
+                            if type(default) == "table" then
+                                Dropdown.Value = default
+                            else
+                                for _, opt in ipairs(options) do
+                                    Dropdown.Value[opt] = false
+                                end
+                            end
                         end
+                        
+                        Window.Flags[flag] = Dropdown.Value
+                        Window.Elements[flag] = Dropdown
                         
                         local DropdownFrame = Create("Frame", {
                             Name = dropdownName .. "Dropdown",
@@ -836,7 +994,7 @@ function SkeetLib:CreateWindow(config)
                             Parent = GroupboxContent
                         })
                         
-                        local DropdownLabel = Create("TextLabel", {
+                        Create("TextLabel", {
                             Name = "Label",
                             BackgroundTransparency = 1,
                             Position = UDim2.new(0, 0, 0, 0),
@@ -859,16 +1017,22 @@ function SkeetLib:CreateWindow(config)
                             TextSize = 10,
                             TextXAlignment = Enum.TextXAlignment.Left,
                             AutoButtonColor = false,
+                            ClipsDescendants = true,
                             Parent = DropdownFrame
                         })
                         AddCorner(DropdownButton, 3)
                         AddStroke(DropdownButton, Theme.ElementBorder, 1)
-                        AddPadding(DropdownButton, 5)
+                        
+                        local ButtonPadding = Create("UIPadding", {
+                            PaddingLeft = UDim.new(0, 5),
+                            PaddingRight = UDim.new(0, 5),
+                            Parent = DropdownButton
+                        })
                         
                         local DropdownArrow = Create("TextLabel", {
                             Name = "Arrow",
                             BackgroundTransparency = 1,
-                            Position = UDim2.new(1, -15, 0, 0),
+                            Position = UDim2.new(1, -10, 0, 0),
                             Size = UDim2.new(0, 10, 1, 0),
                             Font = Enum.Font.Code,
                             Text = "▼",
@@ -877,31 +1041,43 @@ function SkeetLib:CreateWindow(config)
                             Parent = DropdownButton
                         })
                         
+                        -- Create dropdown list in the DropdownContainer for proper z-index
                         local DropdownList = Create("Frame", {
                             Name = "List",
                             BackgroundColor3 = Theme.DropdownBackground,
-                            Position = UDim2.new(0, 0, 0, 38),
-                            Size = UDim2.new(1, 0, 0, 0),
+                            Size = UDim2.new(0, 0, 0, 0),
                             ClipsDescendants = true,
                             Visible = false,
-                            ZIndex = 10,
-                            Parent = DropdownFrame
+                            ZIndex = 100,
+                            Parent = DropdownContainer
                         })
                         AddCorner(DropdownList, 3)
                         AddStroke(DropdownList, Theme.ElementBorder, 1)
                         
-                        local DropdownListLayout = Create("UIListLayout", {
-                            Padding = UDim.new(0, 2),
-                            SortOrder = Enum.SortOrder.LayoutOrder,
+                        local DropdownListScroll = Create("ScrollingFrame", {
+                            Name = "Scroll",
+                            BackgroundTransparency = 1,
+                            Size = UDim2.new(1, 0, 1, 0),
+                            CanvasSize = UDim2.new(0, 0, 0, 0),
+                            ScrollBarThickness = 2,
+                            ScrollBarImageColor3 = Theme.Accent,
+                            BorderSizePixel = 0,
+                            ZIndex = 101,
                             Parent = DropdownList
                         })
                         
-                        local DropdownListPadding = Create("UIPadding", {
+                        local DropdownListLayout = Create("UIListLayout", {
+                            Padding = UDim.new(0, 2),
+                            SortOrder = Enum.SortOrder.LayoutOrder,
+                            Parent = DropdownListScroll
+                        })
+                        
+                        Create("UIPadding", {
                             PaddingTop = UDim.new(0, 3),
                             PaddingBottom = UDim.new(0, 3),
                             PaddingLeft = UDim.new(0, 3),
                             PaddingRight = UDim.new(0, 3),
-                            Parent = DropdownList
+                            Parent = DropdownListScroll
                         })
                         
                         local function GetDisplayText()
@@ -914,13 +1090,31 @@ function SkeetLib:CreateWindow(config)
                                 end
                                 return #selected > 0 and table.concat(selected, ", ") or "None"
                             else
-                                return Dropdown.Value
+                                return Dropdown.Value or "None"
                             end
                         end
                         
                         local function UpdateDropdown()
                             DropdownButton.Text = GetDisplayText()
+                            Window.Flags[flag] = Dropdown.Value
                         end
+                        
+                        local function UpdateListPosition()
+                            local buttonPos = DropdownButton.AbsolutePosition
+                            local buttonSize = DropdownButton.AbsoluteSize
+                            DropdownList.Position = UDim2.new(0, buttonPos.X, 0, buttonPos.Y + buttonSize.Y + 2)
+                            DropdownList.Size = UDim2.new(0, buttonSize.X, 0, math.min(#options * 20 + 8, 150))
+                        end
+                        
+                        local function CloseDropdown()
+                            Dropdown.Open = false
+                            DropdownList.Visible = false
+                            DropdownArrow.Text = "▼"
+                        end
+                        
+                        Dropdown.CloseDropdown = CloseDropdown
+                        
+                        local optionButtons = {}
                         
                         local function CreateOption(optionName)
                             local OptionButton = Create("TextButton", {
@@ -929,16 +1123,17 @@ function SkeetLib:CreateWindow(config)
                                 BackgroundTransparency = 1,
                                 Size = UDim2.new(1, 0, 0, 18),
                                 Font = Enum.Font.Code,
-                                Text = optionName,
+                                Text = "  " .. optionName,
                                 TextColor3 = Theme.TextPrimary,
                                 TextSize = 10,
                                 TextXAlignment = Enum.TextXAlignment.Left,
                                 AutoButtonColor = false,
-                                ZIndex = 11,
-                                Parent = DropdownList
+                                ZIndex = 102,
+                                Parent = DropdownListScroll
                             })
                             AddCorner(OptionButton, 2)
-                            AddPadding(OptionButton, 5)
+                            
+                            optionButtons[optionName] = OptionButton
                             
                             if multiSelect then
                                 local Checkmark = Create("TextLabel", {
@@ -950,7 +1145,7 @@ function SkeetLib:CreateWindow(config)
                                     Text = Dropdown.Value[optionName] and "✓" or "",
                                     TextColor3 = Theme.Accent,
                                     TextSize = 10,
-                                    ZIndex = 11,
+                                    ZIndex = 102,
                                     Parent = OptionButton
                                 })
                                 
@@ -963,10 +1158,7 @@ function SkeetLib:CreateWindow(config)
                             else
                                 OptionButton.MouseButton1Click:Connect(function()
                                     Dropdown.Value = optionName
-                                    Dropdown.Open = false
-                                    DropdownList.Visible = false
-                                    Tween(DropdownList, {Size = UDim2.new(1, 0, 0, 0)}, 0.15)
-                                    DropdownArrow.Text = "▼"
+                                    CloseDropdown()
                                     UpdateDropdown()
                                     callback(Dropdown.Value)
                                 end)
@@ -983,27 +1175,30 @@ function SkeetLib:CreateWindow(config)
                         
                         for _, option in ipairs(options) do
                             CreateOption(option)
-                            if multiSelect then
-                                Dropdown.Value[option] = Dropdown.Value[option] or false
+                            if multiSelect and Dropdown.Value[option] == nil then
+                                Dropdown.Value[option] = false
                             end
                         end
                         
+                        DropdownListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                            DropdownListScroll.CanvasSize = UDim2.new(0, 0, 0, DropdownListLayout.AbsoluteContentSize.Y + 6)
+                        end)
+                        
                         DropdownButton.MouseButton1Click:Connect(function()
                             Dropdown.Open = not Dropdown.Open
-                            DropdownList.Visible = true
                             
-                            local listSize = #options * 20 + 6
                             if Dropdown.Open then
-                                Tween(DropdownList, {Size = UDim2.new(1, 0, 0, math.min(listSize, 150))}, 0.15)
+                                if activeDropdown and activeDropdown ~= Dropdown then
+                                    activeDropdown.CloseDropdown()
+                                end
+                                activeDropdown = Dropdown
+                                
+                                UpdateListPosition()
+                                DropdownList.Visible = true
                                 DropdownArrow.Text = "▲"
                             else
-                                Tween(DropdownList, {Size = UDim2.new(1, 0, 0, 0)}, 0.15)
-                                DropdownArrow.Text = "▼"
-                                task.delay(0.15, function()
-                                    if not Dropdown.Open then
-                                        DropdownList.Visible = false
-                                    end
-                                end)
+                                CloseDropdown()
+                                activeDropdown = nil
                             end
                         end)
                         
@@ -1015,9 +1210,22 @@ function SkeetLib:CreateWindow(config)
                             Tween(DropdownButton, {BackgroundColor3 = Theme.DropdownBackground}, 0.1)
                         end)
                         
+                        -- Update position when scrolling
+                        ColumnScrollFrame:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+                            if Dropdown.Open then
+                                UpdateListPosition()
+                            end
+                        end)
+                        
                         function Dropdown:Set(value)
                             if multiSelect then
                                 Dropdown.Value = value
+                                for optName, btn in pairs(optionButtons) do
+                                    local checkmark = btn:FindFirstChild("Checkmark")
+                                    if checkmark then
+                                        checkmark.Text = Dropdown.Value[optName] and "✓" or ""
+                                    end
+                                end
                             else
                                 Dropdown.Value = value
                             end
@@ -1025,19 +1233,27 @@ function SkeetLib:CreateWindow(config)
                             callback(Dropdown.Value)
                         end
                         
+                        function Dropdown:Get()
+                            return Dropdown.Value
+                        end
+                        
                         function Dropdown:Refresh(newOptions)
-                            for _, child in pairs(DropdownList:GetChildren()) do
+                            for _, child in pairs(DropdownListScroll:GetChildren()) do
                                 if child:IsA("TextButton") then
                                     child:Destroy()
                                 end
                             end
                             options = newOptions
+                            optionButtons = {}
                             for _, option in ipairs(options) do
                                 CreateOption(option)
                                 if multiSelect then
-                                    Dropdown.Value[option] = Dropdown.Value[option] or false
+                                    if Dropdown.Value[option] == nil then
+                                        Dropdown.Value[option] = false
+                                    end
                                 end
                             end
+                            UpdateDropdown()
                         end
                         
                         UpdateDropdown()
@@ -1050,7 +1266,7 @@ function SkeetLib:CreateWindow(config)
                         local buttonName = buttonConfig.Name or "Button"
                         local callback = buttonConfig.Callback or function() end
                         
-                        local Button = {}
+                        local Button = {Type = "Button"}
                         
                         local ButtonFrame = Create("TextButton", {
                             Name = buttonName .. "Button",
@@ -1082,16 +1298,19 @@ function SkeetLib:CreateWindow(config)
                         return Button
                     end
                     
-                    -- Textbox/Input
+                    -- Input
                     function Groupbox:AddInput(inputConfig)
                         inputConfig = inputConfig or {}
                         local inputName = inputConfig.Name or "Input"
+                        local flag = inputConfig.Flag or inputName
                         local default = inputConfig.Default or ""
                         local placeholder = inputConfig.Placeholder or "Enter text..."
                         local numeric = inputConfig.Numeric or false
                         local callback = inputConfig.Callback or function() end
                         
-                        local Input = {Value = default}
+                        local Input = {Value = default, Type = "Input"}
+                        Window.Flags[flag] = default
+                        Window.Elements[flag] = Input
                         
                         local InputFrame = Create("Frame", {
                             Name = inputName .. "Input",
@@ -1100,7 +1319,7 @@ function SkeetLib:CreateWindow(config)
                             Parent = GroupboxContent
                         })
                         
-                        local InputLabel = Create("TextLabel", {
+                        Create("TextLabel", {
                             Name = "Label",
                             BackgroundTransparency = 1,
                             Position = UDim2.new(0, 0, 0, 0),
@@ -1139,11 +1358,8 @@ function SkeetLib:CreateWindow(config)
                                 InputBox.Text = tostring(text)
                             end
                             Input.Value = text
+                            Window.Flags[flag] = text
                             callback(text)
-                        end)
-                        
-                        InputBox.Focused:Connect(function()
-                            Tween(InputBox, {BackgroundColor3 = Theme.ElementBackgroundHover}, 0.1)
                         end)
                         
                         InputBox:GetPropertyChangedSignal("Text"):Connect(function()
@@ -1155,7 +1371,12 @@ function SkeetLib:CreateWindow(config)
                         function Input:Set(value)
                             Input.Value = value
                             InputBox.Text = tostring(value)
+                            Window.Flags[flag] = value
                             callback(value)
+                        end
+                        
+                        function Input:Get()
+                            return Input.Value
                         end
                         
                         return Input
@@ -1165,19 +1386,23 @@ function SkeetLib:CreateWindow(config)
                     function Groupbox:AddColorPicker(colorConfig)
                         colorConfig = colorConfig or {}
                         local colorName = colorConfig.Name or "Color"
+                        local flag = colorConfig.Flag or colorName
                         local default = colorConfig.Default or Color3.fromRGB(255, 255, 255)
                         local callback = colorConfig.Callback or function() end
                         
-                        local ColorPicker = {Value = default, Open = false}
+                        local ColorPicker = {Value = default, Open = false, Type = "ColorPicker"}
+                        Window.Flags[flag] = default
+                        Window.Elements[flag] = ColorPicker
                         
                         local ColorFrame = Create("Frame", {
                             Name = colorName .. "Color",
                             BackgroundTransparency = 1,
                             Size = UDim2.new(1, 0, 0, 18),
+                            ClipsDescendants = false,
                             Parent = GroupboxContent
                         })
                         
-                        local ColorLabel = Create("TextLabel", {
+                        Create("TextLabel", {
                             Name = "Label",
                             BackgroundTransparency = 1,
                             Position = UDim2.new(0, 0, 0, 0),
@@ -1203,33 +1428,31 @@ function SkeetLib:CreateWindow(config)
                         AddCorner(ColorDisplay, 2)
                         AddStroke(ColorDisplay, Theme.ElementBorder, 1)
                         
-                        -- Color Picker Panel
+                        -- Color Picker Panel (in DropdownContainer)
                         local ColorPanel = Create("Frame", {
                             Name = "Panel",
                             BackgroundColor3 = Theme.GroupboxBackground,
-                            Position = UDim2.new(0, 0, 0, 20),
-                            Size = UDim2.new(1, 0, 0, 0),
+                            Size = UDim2.new(0, 180, 0, 120),
                             ClipsDescendants = true,
                             Visible = false,
-                            ZIndex = 15,
-                            Parent = ColorFrame
+                            ZIndex = 100,
+                            Parent = DropdownContainer
                         })
                         AddCorner(ColorPanel, 3)
                         AddStroke(ColorPanel, Theme.ElementBorder, 1)
                         
-                        -- Main Color Picker (Saturation/Value)
                         local ColorMain = Create("ImageButton", {
                             Name = "Main",
                             BackgroundColor3 = Color3.fromHSV(1, 1, 1),
                             Position = UDim2.new(0, 5, 0, 5),
-                            Size = UDim2.new(1, -30, 0, 100),
+                            Size = UDim2.new(1, -30, 1, -10),
                             AutoButtonColor = false,
-                            ZIndex = 16,
+                            ZIndex = 101,
                             Parent = ColorPanel
                         })
                         AddCorner(ColorMain, 3)
                         
-                        local ColorMainGradient = Create("UIGradient", {
+                        Create("UIGradient", {
                             Color = ColorSequence.new({
                                 ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
                                 ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
@@ -1245,12 +1468,12 @@ function SkeetLib:CreateWindow(config)
                             Name = "Overlay",
                             BackgroundColor3 = Color3.fromRGB(0, 0, 0),
                             Size = UDim2.new(1, 0, 1, 0),
-                            ZIndex = 16,
+                            ZIndex = 101,
                             Parent = ColorMain
                         })
                         AddCorner(ColorMainOverlay, 3)
                         
-                        local ColorMainOverlayGradient = Create("UIGradient", {
+                        Create("UIGradient", {
                             Rotation = 90,
                             Transparency = NumberSequence.new({
                                 NumberSequenceKeypoint.new(0, 1),
@@ -1265,25 +1488,24 @@ function SkeetLib:CreateWindow(config)
                             AnchorPoint = Vector2.new(0.5, 0.5),
                             Position = UDim2.new(1, 0, 0, 0),
                             Size = UDim2.new(0, 8, 0, 8),
-                            ZIndex = 17,
+                            ZIndex = 102,
                             Parent = ColorMain
                         })
                         AddCorner(ColorMainCursor, 100)
                         AddStroke(ColorMainCursor, Color3.fromRGB(0, 0, 0), 1)
                         
-                        -- Hue Slider
                         local HueSlider = Create("ImageButton", {
                             Name = "Hue",
                             BackgroundColor3 = Color3.fromRGB(255, 255, 255),
                             Position = UDim2.new(1, -20, 0, 5),
-                            Size = UDim2.new(0, 15, 0, 100),
+                            Size = UDim2.new(0, 15, 1, -10),
                             AutoButtonColor = false,
-                            ZIndex = 16,
+                            ZIndex = 101,
                             Parent = ColorPanel
                         })
                         AddCorner(HueSlider, 3)
                         
-                        local HueGradient = Create("UIGradient", {
+                        Create("UIGradient", {
                             Rotation = 90,
                             Color = ColorSequence.new({
                                 ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
@@ -1303,7 +1525,7 @@ function SkeetLib:CreateWindow(config)
                             AnchorPoint = Vector2.new(0.5, 0.5),
                             Position = UDim2.new(0.5, 0, 0, 0),
                             Size = UDim2.new(1, 4, 0, 4),
-                            ZIndex = 17,
+                            ZIndex = 102,
                             Parent = HueSlider
                         })
                         AddCorner(HueCursor, 2)
@@ -1315,11 +1537,16 @@ function SkeetLib:CreateWindow(config)
                             ColorPicker.Value = Color3.fromHSV(H, S, V)
                             ColorDisplay.BackgroundColor3 = ColorPicker.Value
                             ColorMain.BackgroundColor3 = Color3.fromHSV(H, 1, 1)
-                            
                             ColorMainCursor.Position = UDim2.new(S, 0, 1 - V, 0)
                             HueCursor.Position = UDim2.new(0.5, 0, H, 0)
-                            
+                            Window.Flags[flag] = ColorPicker.Value
                             callback(ColorPicker.Value)
+                        end
+                        
+                        local function UpdatePanelPosition()
+                            local displayPos = ColorDisplay.AbsolutePosition
+                            local displaySize = ColorDisplay.AbsoluteSize
+                            ColorPanel.Position = UDim2.new(0, displayPos.X - 150, 0, displayPos.Y + displaySize.Y + 2)
                         end
                         
                         local mainDragging = false
@@ -1364,25 +1591,22 @@ function SkeetLib:CreateWindow(config)
                         
                         ColorDisplay.MouseButton1Click:Connect(function()
                             ColorPicker.Open = not ColorPicker.Open
-                            ColorPanel.Visible = true
                             
                             if ColorPicker.Open then
-                                Tween(ColorPanel, {Size = UDim2.new(1, 0, 0, 115)}, 0.15)
-                                DropdownFrame.Size = UDim2.new(1, 0, 0, 135)
+                                UpdatePanelPosition()
+                                ColorPanel.Visible = true
                             else
-                                Tween(ColorPanel, {Size = UDim2.new(1, 0, 0, 0)}, 0.15)
-                                task.delay(0.15, function()
-                                    if not ColorPicker.Open then
-                                        ColorPanel.Visible = false
-                                    end
-                                end)
-                                ColorFrame.Size = UDim2.new(1, 0, 0, 18)
+                                ColorPanel.Visible = false
                             end
                         end)
                         
                         function ColorPicker:Set(color)
                             H, S, V = color:ToHSV()
                             UpdateColor()
+                        end
+                        
+                        function ColorPicker:Get()
+                            return ColorPicker.Value
                         end
                         
                         UpdateColor()
@@ -1393,11 +1617,14 @@ function SkeetLib:CreateWindow(config)
                     function Groupbox:AddKeybind(keybindConfig)
                         keybindConfig = keybindConfig or {}
                         local keybindName = keybindConfig.Name or "Keybind"
+                        local flag = keybindConfig.Flag or keybindName
                         local default = keybindConfig.Default or Enum.KeyCode.Unknown
                         local callback = keybindConfig.Callback or function() end
                         local changedCallback = keybindConfig.ChangedCallback or function() end
                         
-                        local Keybind = {Value = default, Listening = false}
+                        local Keybind = {Value = default, Listening = false, Type = "Keybind"}
+                        Window.Flags[flag] = default
+                        Window.Elements[flag] = Keybind
                         
                         local KeybindFrame = Create("Frame", {
                             Name = keybindName .. "Keybind",
@@ -1406,7 +1633,7 @@ function SkeetLib:CreateWindow(config)
                             Parent = GroupboxContent
                         })
                         
-                        local KeybindLabel = Create("TextLabel", {
+                        Create("TextLabel", {
                             Name = "Label",
                             BackgroundTransparency = 1,
                             Position = UDim2.new(0, 0, 0, 0),
@@ -1444,16 +1671,17 @@ function SkeetLib:CreateWindow(config)
                         UserInputService.InputBegan:Connect(function(input, gameProcessed)
                             if Keybind.Listening then
                                 if input.UserInputType == Enum.UserInputType.Keyboard then
-                                    Keybind.Value = input.KeyCode
-                                    KeybindButton.Text = input.KeyCode.Name
+                                    if input.KeyCode == Enum.KeyCode.Escape then
+                                        Keybind.Value = Enum.KeyCode.Unknown
+                                        KeybindButton.Text = "None"
+                                    else
+                                        Keybind.Value = input.KeyCode
+                                        KeybindButton.Text = input.KeyCode.Name
+                                    end
                                     KeybindButton.TextColor3 = Theme.TextSecondary
                                     Keybind.Listening = false
+                                    Window.Flags[flag] = Keybind.Value
                                     changedCallback(Keybind.Value)
-                                elseif input.UserInputType == Enum.UserInputType.MouseButton1 then
-                                    -- Cancel
-                                    KeybindButton.Text = Keybind.Value == Enum.KeyCode.Unknown and "None" or Keybind.Value.Name
-                                    KeybindButton.TextColor3 = Theme.TextSecondary
-                                    Keybind.Listening = false
                                 end
                             else
                                 if input.KeyCode == Keybind.Value and not gameProcessed then
@@ -1471,7 +1699,12 @@ function SkeetLib:CreateWindow(config)
                         function Keybind:Set(key)
                             Keybind.Value = key
                             KeybindButton.Text = key == Enum.KeyCode.Unknown and "None" or key.Name
+                            Window.Flags[flag] = key
                             changedCallback(key)
+                        end
+                        
+                        function Keybind:Get()
+                            return Keybind.Value
                         end
                         
                         return Keybind
@@ -1493,6 +1726,8 @@ function SkeetLib:CreateWindow(config)
                             TextColor3 = Theme.TextSecondary,
                             TextSize = 11,
                             TextXAlignment = Enum.TextXAlignment.Left,
+                            TextWrapped = true,
+                            AutomaticSize = Enum.AutomaticSize.Y,
                             Parent = GroupboxContent
                         })
                         
@@ -1505,14 +1740,12 @@ function SkeetLib:CreateWindow(config)
                     
                     -- Divider
                     function Groupbox:AddDivider()
-                        local DividerFrame = Create("Frame", {
+                        return Create("Frame", {
                             Name = "Divider",
                             BackgroundColor3 = Theme.GroupboxBorder,
                             Size = UDim2.new(1, 0, 0, 1),
                             Parent = GroupboxContent
                         })
-                        
-                        return DividerFrame
                     end
                     
                     table.insert(Column.Groupboxes, Groupbox)
@@ -1529,7 +1762,6 @@ function SkeetLib:CreateWindow(config)
             
             table.insert(Tab.SubTabs, SubTab)
             
-            -- Auto-select first subtab
             if #Tab.SubTabs == 1 then
                 SelectSubTab()
             end
@@ -1544,7 +1776,6 @@ function SkeetLib:CreateWindow(config)
         
         table.insert(Window.Tabs, Tab)
         
-        -- Auto-select first tab
         if #Window.Tabs == 1 then
             SelectTab()
         end
@@ -1552,16 +1783,15 @@ function SkeetLib:CreateWindow(config)
         return Tab
     end
     
-    -- Toggle visibility with keybind
     function Window:SetToggleKey(key)
         UserInputService.InputBegan:Connect(function(input, gameProcessed)
             if not gameProcessed and input.KeyCode == key then
                 MainFrame.Visible = not MainFrame.Visible
+                DropdownContainer.Visible = MainFrame.Visible
             end
         end)
     end
     
-    -- Notification system
     function Window:Notify(config)
         config = config or {}
         local title = config.Title or "Notification"
@@ -1579,7 +1809,7 @@ function SkeetLib:CreateWindow(config)
         AddCorner(NotifyFrame, 4)
         AddStroke(NotifyFrame, Theme.Accent, 1)
         
-        local NotifyTitle = Create("TextLabel", {
+        Create("TextLabel", {
             Name = "Title",
             BackgroundTransparency = 1,
             Position = UDim2.new(0, 10, 0, 5),
@@ -1592,7 +1822,7 @@ function SkeetLib:CreateWindow(config)
             Parent = NotifyFrame
         })
         
-        local NotifyMessage = Create("TextLabel", {
+        Create("TextLabel", {
             Name = "Message",
             BackgroundTransparency = 1,
             Position = UDim2.new(0, 10, 0, 22),
@@ -1614,6 +1844,10 @@ function SkeetLib:CreateWindow(config)
             task.wait(0.3)
             NotifyFrame:Destroy()
         end)
+    end
+    
+    function Window:Destroy()
+        ScreenGui:Destroy()
     end
     
     return Window
