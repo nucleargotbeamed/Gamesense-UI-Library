@@ -11,7 +11,7 @@ local Player = Players.LocalPlayer
 local Mouse = Player:GetMouse()
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "SenseUI"
+ScreenGui.Name = “SenseUI”
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.ResetOnSpawn = false
 
@@ -305,10 +305,10 @@ function SenseUI:CreateWindow(config)
         Parent = ContentScroll
     })
 
-    ContentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-        ContentScroll.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y + 10)
-    end)
-
+   ContentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    ContentScroll.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y + 10)
+end)
+    
     local function SetupToggleKey()
         if Window.ToggleKeyConnection then
             Window.ToggleKeyConnection:Disconnect()
@@ -529,25 +529,37 @@ function SenseUI:CreateWindow(config)
                 Parent = SectionContent
             })
 
-            local function UpdateColumnSize()
-                local leftSize = 0
-                for _, child in pairs(LeftColumn:GetChildren()) do
-                    if child:IsA("Frame") then
-                        leftSize = leftSize + child.AbsoluteSize.Y + 10
-                    end
-                end
-
-                local rightSize = 0
-                for _, child in pairs(RightColumn:GetChildren()) do
-                    if child:IsA("Frame") then
-                        rightSize = rightSize + child.AbsoluteSize.Y + 10
-                    end
-                end
-
-                ContentScroll.CanvasSize = UDim2.new(0, 0, 0, math.max(leftSize, rightSize) + 20)
+           local debounce = false
+local function UpdateColumnSize()
+    if debounce then return end
+    debounce = true
+    
+    task.defer(function()
+        local leftSize = 0
+        for _, child in pairs(LeftColumn:GetChildren()) do
+            if child:IsA("Frame") then
+                leftSize = leftSize + child.AbsoluteSize.Y + 10
             end
+        end
 
-            SectionContent:GetPropertyChangedSignal("AbsoluteSize"):Connect(UpdateColumnSize)
+        local rightSize = 0
+        for _, child in pairs(RightColumn:GetChildren()) do
+            if child:IsA("Frame") then
+                rightSize = rightSize + child.AbsoluteSize.Y + 10
+            end
+        end
+
+        local newSize = math.max(leftSize, rightSize) + 20
+        if math.abs(ContentScroll.CanvasSize.Y.Offset - newSize) > 1 then
+            ContentScroll.CanvasSize = UDim2.new(0, 0, 0, newSize)
+        end
+        
+        debounce = false
+    end)
+end
+
+SectionContent:GetPropertyChangedSignal("AbsoluteSize"):Connect(UpdateColumnSize)
+
 
             function Section:CreateToggle(config)
                 local Toggle = {}
