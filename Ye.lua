@@ -5,6 +5,7 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
 
 local Player = Players.LocalPlayer
 local Mouse = Player:GetMouse()
@@ -46,6 +47,27 @@ local Icons = {
     misc = "rbxassetid://6031229048"
 }
 
+local ConfigFolder = "SenseCFGS"
+
+local function EnsureConfigFolder()
+    if not isfolder(ConfigFolder) then
+        makefolder(ConfigFolder)
+    end
+end
+
+local function GetConfigs()
+    EnsureConfigFolder()
+    local configs = {}
+    local files = listfiles(ConfigFolder)
+    for _, file in pairs(files) do
+        local name = file:match("([^/\\]+)%.json$")
+        if name then
+            table.insert(configs, name)
+        end
+    end
+    return configs
+end
+
 local function Create(class, properties)
     local instance = Instance.new(class)
     for prop, value in pairs(properties) do
@@ -80,16 +102,6 @@ local function AddStroke(parent, color, thickness)
     return Create("UIStroke", {
         Color = color or Theme.Border,
         Thickness = thickness or 1,
-        Parent = parent
-    })
-end
-
-local function AddPadding(parent, padding)
-    return Create("UIPadding", {
-        PaddingTop = UDim.new(0, padding),
-        PaddingBottom = UDim.new(0, padding),
-        PaddingLeft = UDim.new(0, padding),
-        PaddingRight = UDim.new(0, padding),
         Parent = parent
     })
 end
@@ -139,6 +151,10 @@ function SenseUI:CreateWindow(config)
     Window.Tabs = {}
     Window.CurrentTab = nil
     Window.Visible = true
+    Window.Flags = {}
+    Window.Elements = {}
+    Window.ToggleKey = Enum.KeyCode.RightShift
+    Window.ToggleKeyConnection = nil
 
     local MainFrame = Create("Frame", {
         Name = "MainFrame",
@@ -186,7 +202,7 @@ function SenseUI:CreateWindow(config)
 
     spawn(function()
         local offset = 0
-        while true do
+        while MainFrame and MainFrame.Parent do
             offset = (offset + 0.005) % 1
             RGBGradient.Offset = Vector2.new(offset, 0)
             RunService.RenderStepped:Wait()
@@ -293,12 +309,85 @@ function SenseUI:CreateWindow(config)
         ContentScroll.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y + 10)
     end)
 
-    UserInputService.InputBegan:Connect(function(input, processed)
-        if not processed and input.KeyCode == Enum.KeyCode.RightShift then
-            Window.Visible = not Window.Visible
-            MainFrame.Visible = Window.Visible
+    local function SetupToggleKey()
+        if Window.ToggleKeyConnection then
+            Window.ToggleKeyConnection:Disconnect()
         end
-    end)
+        Window.ToggleKeyConnection = UserInputService.InputBegan:Connect(function(input, processed)
+            if not processed and input.KeyCode == Window.ToggleKey then
+                Window.Visible = not Window.Visible
+                MainFrame.Visible = Window.Visible
+            end
+        end)
+    end
+
+    SetupToggleKey()
+
+    function Window:SetToggleKey(key)
+        Window.ToggleKey = key
+        SetupToggleKey()
+    end
+
+    function Window:SaveConfig(name)
+        EnsureConfigFolder()
+        local data = {}
+        for flag, element in pairs(Window.Elements) do
+            if element.Type == "Toggle" then
+                data[flag] = {Type = "Toggle", Value = element.Value}
+            elseif element.Type == "Slider" then
+                data[flag] = {Type = "Slider", Value = element.Value}
+            elseif element.Type == "Dropdown" then
+                data[flag] = {Type = "Dropdown", Value = element.Value}
+            elseif element.Type == "ColorPicker" then
+                data[flag] = {Type = "ColorPicker", Value = {element.Value.R * 255, element.Value.G * 255, element.Value.B * 255}}
+            elseif element.Type == "Keybind" then
+                data[flag] = {Type = "Keybind", Value = element.Value.Name}
+            elseif element.Type == "Textbox" then
+                data[flag] = {Type = "Textbox", Value = element.Value}
+            end
+        end
+        local json = HttpService:JSONEncode(data)
+        writefile(ConfigFolder .. "/" .. name .. ".json", json)
+    end
+
+    function Window:LoadConfig(name)
+        EnsureConfigFolder()
+        local path = ConfigFolder .. "/" .. name .. ".json"
+        if isfile(path) then
+            local json = readfile(path)
+            local data = HttpService:JSONDecode(json)
+            for flag, info in pairs(data) do
+                local element = Window.Elements[flag]
+                if element then
+                    if info.Type == "Toggle" then
+                        element:Set(info.Value)
+                    elseif info.Type == "Slider" then
+                        element:Set(info.Value)
+                    elseif info.Type == "Dropdown" then
+                        element:Set(info.Value)
+                    elseif info.Type == "ColorPicker" then
+                        element:Set(Color3.fromRGB(info.Value[1], info.Value[2], info.Value[3]))
+                    elseif info.Type == "Keybind" then
+                        element:Set(Enum.KeyCode[info.Value])
+                    elseif info.Type == "Textbox" then
+                        element:Set(info.Value)
+                    end
+                end
+            end
+            return true
+        end
+        return false
+    end
+
+    function Window:DeleteConfig(name)
+        EnsureConfigFolder()
+        local path = ConfigFolder .. "/" .. name .. ".json"
+        if isfile(path) then
+            delfile(path)
+            return true
+        end
+        return false
+    end
 
     function Window:CreateTab(name, icon)
         local Tab = {}
@@ -469,6 +558,7 @@ function SenseUI:CreateWindow(config)
                 local flag = config.Flag
 
                 Toggle.Value = default
+                Toggle.Type = "Toggle"
 
                 local ToggleFrame = Create("Frame", {
                     Name = name,
@@ -515,7 +605,7 @@ function SenseUI:CreateWindow(config)
                     Parent = ToggleFrame
                 })
 
-                local function UpdateToggle()
+                local function UpdateToggle(noCallback)
                     if Toggle.Value then
                         Tween(ToggleButton, {BackgroundColor3 = Theme.Accent}, 0.2)
                         Tween(ToggleCircle, {Position = UDim2.new(1, -18, 0.5, -8), BackgroundColor3 = Theme.Text}, 0.2)
@@ -525,23 +615,27 @@ function SenseUI:CreateWindow(config)
                         Tween(ToggleCircle, {Position = UDim2.new(0, 2, 0.5, -8), BackgroundColor3 = Theme.TextDarker}, 0.2)
                         Tween(ToggleLabel, {TextColor3 = Theme.TextDark}, 0.2)
                     end
+                    if not noCallback then
+                        callback(Toggle.Value)
+                    end
                 end
 
                 ToggleClick.MouseButton1Click:Connect(function()
                     Toggle.Value = not Toggle.Value
                     UpdateToggle()
-                    callback(Toggle.Value)
                 end)
 
                 if default then
                     UpdateToggle()
-                    callback(default)
                 end
 
-                function Toggle:Set(value)
+                function Toggle:Set(value, noCallback)
                     Toggle.Value = value
-                    UpdateToggle()
-                    callback(value)
+                    UpdateToggle(noCallback)
+                end
+
+                if flag then
+                    Window.Elements[flag] = Toggle
                 end
 
                 table.insert(Section.Elements, Toggle)
@@ -557,8 +651,10 @@ function SenseUI:CreateWindow(config)
                 local default = config.Default or min
                 local suffix = config.Suffix or ""
                 local callback = config.Callback or function() end
+                local flag = config.Flag
 
                 Slider.Value = default
+                Slider.Type = "Slider"
 
                 local SliderFrame = Create("Frame", {
                     Name = name,
@@ -629,7 +725,7 @@ function SenseUI:CreateWindow(config)
 
                 local dragging = false
 
-                local function UpdateSlider(input)
+                local function UpdateSlider(input, noCallback)
                     local pos = math.clamp((input.Position.X - SliderTrack.AbsolutePosition.X) / SliderTrack.AbsoluteSize.X, 0, 1)
                     local value = math.floor(min + (max - min) * pos)
                     Slider.Value = value
@@ -638,7 +734,9 @@ function SenseUI:CreateWindow(config)
                     Tween(SliderKnob, {Position = UDim2.new(pos, -7, 0.5, -7)}, 0.05)
                     SliderValue.Text = tostring(value) .. suffix
 
-                    callback(value)
+                    if not noCallback then
+                        callback(value)
+                    end
                 end
 
                 SliderInput.MouseButton1Down:Connect(function()
@@ -662,13 +760,19 @@ function SenseUI:CreateWindow(config)
                     UpdateSlider(input)
                 end)
 
-                function Slider:Set(value)
+                function Slider:Set(value, noCallback)
                     Slider.Value = value
                     local pos = (value - min) / (max - min)
                     SliderFill.Size = UDim2.new(pos, 0, 1, 0)
                     SliderKnob.Position = UDim2.new(pos, -7, 0.5, -7)
                     SliderValue.Text = tostring(value) .. suffix
-                    callback(value)
+                    if not noCallback then
+                        callback(value)
+                    end
+                end
+
+                if flag then
+                    Window.Elements[flag] = Slider
                 end
 
                 table.insert(Section.Elements, Slider)
@@ -682,9 +786,11 @@ function SenseUI:CreateWindow(config)
                 local options = config.Options or {}
                 local default = config.Default or options[1]
                 local callback = config.Callback or function() end
+                local flag = config.Flag
 
                 Dropdown.Value = default
                 Dropdown.Open = false
+                Dropdown.Type = "Dropdown"
 
                 local DropdownFrame = Create("Frame", {
                     Name = name,
@@ -766,6 +872,14 @@ function SenseUI:CreateWindow(config)
                     Parent = DropdownList
                 })
 
+                local function ClearOptions()
+                    for _, child in pairs(DropdownList:GetChildren()) do
+                        if child:IsA("TextButton") then
+                            child:Destroy()
+                        end
+                    end
+                end
+
                 local function CreateOption(option)
                     local OptionButton = Create("TextButton", {
                         Name = option,
@@ -817,22 +931,37 @@ function SenseUI:CreateWindow(config)
                     end
                 end)
 
-                function Dropdown:Set(value)
+                function Dropdown:Set(value, noCallback)
                     Dropdown.Value = value
                     DropdownText.Text = value
-                    callback(value)
+                    if not noCallback then
+                        callback(value)
+                    end
                 end
 
-                function Dropdown:Refresh(newOptions)
+                function Dropdown:Refresh(newOptions, keepValue)
                     options = newOptions
-                    for _, child in pairs(DropdownList:GetChildren()) do
-                        if child:IsA("TextButton") then
-                            child:Destroy()
-                        end
-                    end
+                    ClearOptions()
                     for _, option in pairs(options) do
                         CreateOption(option)
                     end
+                    if not keepValue then
+                        if #options > 0 then
+                            Dropdown.Value = options[1]
+                            DropdownText.Text = options[1]
+                        else
+                            Dropdown.Value = nil
+                            DropdownText.Text = "Select..."
+                        end
+                    end
+                end
+
+                function Dropdown:GetOptions()
+                    return options
+                end
+
+                if flag then
+                    Window.Elements[flag] = Dropdown
                 end
 
                 table.insert(Section.Elements, Dropdown)
@@ -845,9 +974,11 @@ function SenseUI:CreateWindow(config)
                 local name = config.Name or "Color Picker"
                 local default = config.Default or Color3.fromRGB(255, 255, 255)
                 local callback = config.Callback or function() end
+                local flag = config.Flag
 
                 ColorPicker.Value = default
                 ColorPicker.Open = false
+                ColorPicker.Type = "ColorPicker"
 
                 local ColorFrame = Create("Frame", {
                     Name = name,
@@ -949,12 +1080,14 @@ function SenseUI:CreateWindow(config)
 
                 local h, s, v = Color3.toHSV(default)
 
-                local function UpdateColor()
+                local function UpdateColor(noCallback)
                     local color = Color3.fromHSV(h, s, v)
                     ColorPicker.Value = color
                     ColorButton.BackgroundColor3 = color
                     ColorGradient.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
-                    callback(color)
+                    if not noCallback then
+                        callback(color)
+                    end
                 end
 
                 ColorButton.MouseButton1Click:Connect(function()
@@ -1002,14 +1135,20 @@ function SenseUI:CreateWindow(config)
                     end
                 end)
 
-                function ColorPicker:Set(color)
+                function ColorPicker:Set(color, noCallback)
                     ColorPicker.Value = color
                     h, s, v = Color3.toHSV(color)
                     ColorButton.BackgroundColor3 = color
                     ColorGradient.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
                     ColorSelector.Position = UDim2.new(s, -5, 1 - v, -5)
                     HueSelector.Position = UDim2.new(h, -3, 0, -2)
-                    callback(color)
+                    if not noCallback then
+                        callback(color)
+                    end
+                end
+
+                if flag then
+                    Window.Elements[flag] = ColorPicker
                 end
 
                 table.insert(Section.Elements, ColorPicker)
@@ -1061,8 +1200,10 @@ function SenseUI:CreateWindow(config)
                 local default = config.Default or ""
                 local placeholder = config.Placeholder or "Enter text..."
                 local callback = config.Callback or function() end
+                local flag = config.Flag
 
                 Textbox.Value = default
+                Textbox.Type = "Textbox"
 
                 local TextboxFrame = Create("Frame", {
                     Name = name,
@@ -1105,10 +1246,16 @@ function SenseUI:CreateWindow(config)
                     callback(TextboxInput.Text)
                 end)
 
-                function Textbox:Set(value)
+                function Textbox:Set(value, noCallback)
                     Textbox.Value = value
                     TextboxInput.Text = value
-                    callback(value)
+                    if not noCallback then
+                        callback(value)
+                    end
+                end
+
+                if flag then
+                    Window.Elements[flag] = Textbox
                 end
 
                 table.insert(Section.Elements, Textbox)
@@ -1121,9 +1268,12 @@ function SenseUI:CreateWindow(config)
                 local name = config.Name or "Keybind"
                 local default = config.Default or Enum.KeyCode.Unknown
                 local callback = config.Callback or function() end
+                local flag = config.Flag
+                local isUIToggle = config.UIToggle or false
 
                 Keybind.Value = default
                 Keybind.Listening = false
+                Keybind.Type = "Keybind"
 
                 local KeybindFrame = Create("Frame", {
                     Name = name,
@@ -1171,24 +1321,152 @@ function SenseUI:CreateWindow(config)
                             KeybindButton.Text = input.KeyCode.Name
                             Keybind.Listening = false
                             Tween(KeybindButton, {BackgroundColor3 = Theme.Tertiary}, 0.15)
+                            if isUIToggle then
+                                Window:SetToggleKey(input.KeyCode)
+                            end
                         elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
                             Keybind.Listening = false
                             KeybindButton.Text = Keybind.Value.Name or "None"
                             Tween(KeybindButton, {BackgroundColor3 = Theme.Tertiary}, 0.15)
                         end
-                    elseif not processed and input.KeyCode == Keybind.Value then
+                    elseif not processed and not isUIToggle and input.KeyCode == Keybind.Value then
                         callback(Keybind.Value)
                     end
                 end)
 
-                function Keybind:Set(key)
+                function Keybind:Set(key, noCallback)
                     Keybind.Value = key
                     KeybindButton.Text = key.Name
-                    callback(key)
+                    if isUIToggle then
+                        Window:SetToggleKey(key)
+                    end
+                    if not noCallback then
+                        callback(key)
+                    end
+                end
+
+                if flag then
+                    Window.Elements[flag] = Keybind
                 end
 
                 table.insert(Section.Elements, Keybind)
                 return Keybind
+            end
+
+            function Section:CreateConfigSection()
+                local ConfigDropdown
+                local ConfigNameBox
+
+                ConfigNameBox = Section:CreateTextbox({
+                    Name = "Config Name",
+                    Default = "",
+                    Placeholder = "Enter config name...",
+                    Callback = function() end
+                })
+
+                Section:CreateButton({
+                    Name = "Save Config",
+                    Callback = function()
+                        local configName = ConfigNameBox.Value
+                        if configName and configName ~= "" then
+                            Window:SaveConfig(configName)
+                            SenseUI:Notify({
+                                Title = "Config Saved",
+                                Message = "Configuration '" .. configName .. "' saved successfully!",
+                                Duration = 3
+                            })
+                            if ConfigDropdown then
+                                ConfigDropdown:Refresh(GetConfigs(), true)
+                            end
+                        else
+                            SenseUI:Notify({
+                                Title = "Error",
+                                Message = "Please enter a config name!",
+                                Duration = 3
+                            })
+                        end
+                    end
+                })
+
+                ConfigDropdown = Section:CreateDropdown({
+                    Name = "Select Config",
+                    Options = GetConfigs(),
+                    Default = nil,
+                    Callback = function() end
+                })
+
+                Section:CreateButton({
+                    Name = "Load Config",
+                    Callback = function()
+                        local configName = ConfigDropdown.Value
+                        if configName then
+                            local success = Window:LoadConfig(configName)
+                            if success then
+                                SenseUI:Notify({
+                                    Title = "Config Loaded",
+                                    Message = "Configuration '" .. configName .. "' loaded successfully!",
+                                    Duration = 3
+                                })
+                            else
+                                SenseUI:Notify({
+                                    Title = "Error",
+                                    Message = "Failed to load configuration!",
+                                    Duration = 3
+                                })
+                            end
+                        else
+                            SenseUI:Notify({
+                                Title = "Error",
+                                Message = "Please select a config to load!",
+                                Duration = 3
+                            })
+                        end
+                    end
+                })
+
+                Section:CreateButton({
+                    Name = "Refresh Configs",
+                    Callback = function()
+                        ConfigDropdown:Refresh(GetConfigs(), false)
+                        SenseUI:Notify({
+                            Title = "Configs Refreshed",
+                            Message = "Config list has been updated!",
+                            Duration = 2
+                        })
+                    end
+                })
+
+                Section:CreateButton({
+                    Name = "Delete Config",
+                    Callback = function()
+                        local configName = ConfigDropdown.Value
+                        if configName then
+                            local success = Window:DeleteConfig(configName)
+                            if success then
+                                ConfigDropdown:Refresh(GetConfigs(), false)
+                                SenseUI:Notify({
+                                    Title = "Config Deleted",
+                                    Message = "Configuration '" .. configName .. "' deleted!",
+                                    Duration = 3
+                                })
+                            else
+                                SenseUI:Notify({
+                                    Title = "Error",
+                                    Message = "Failed to delete configuration!",
+                                    Duration = 3
+                                })
+                            end
+                        else
+                            SenseUI:Notify({
+                                Title = "Error",
+                                Message = "Please select a config to delete!",
+                                Duration = 3
+                            })
+                        end
+                    end
+                })
+
+                return ConfigDropdown
             end
 
             table.insert(Tab.Sections, Section)
@@ -1200,6 +1478,9 @@ function SenseUI:CreateWindow(config)
     end
 
     function Window:Destroy()
+        if Window.ToggleKeyConnection then
+            Window.ToggleKeyConnection:Disconnect()
+        end
         ScreenGui:Destroy()
     end
 
