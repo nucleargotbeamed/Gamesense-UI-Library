@@ -11,7 +11,7 @@ local Player = Players.LocalPlayer
 local Mouse = Player:GetMouse()
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = “SenseUI”
+ScreenGui.Name = "SenseUI"
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.ResetOnSpawn = false
 
@@ -200,7 +200,7 @@ function SenseUI:CreateWindow(config)
         Parent = RGBBar
     })
 
-    spawn(function()
+    task.spawn(function()
         local offset = 0
         while MainFrame and MainFrame.Parent do
             offset = (offset + 0.005) % 1
@@ -236,7 +236,7 @@ function SenseUI:CreateWindow(config)
         Size = UDim2.new(0, 35, 0, 35),
         Position = UDim2.new(1, -35, 0, 0),
         BackgroundTransparency = 1,
-        Text = "×",
+        Text = "x",
         TextColor3 = Theme.TextDark,
         TextSize = 24,
         Font = Enum.Font.GothamBold,
@@ -305,10 +305,6 @@ function SenseUI:CreateWindow(config)
         Parent = ContentScroll
     })
 
-   ContentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    ContentScroll.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y + 10)
-end)
-    
     local function SetupToggleKey()
         if Window.ToggleKeyConnection then
             Window.ToggleKeyConnection:Disconnect()
@@ -529,37 +525,36 @@ end)
                 Parent = SectionContent
             })
 
-           local debounce = false
-local function UpdateColumnSize()
-    if debounce then return end
-    debounce = true
-    
-    task.defer(function()
-        local leftSize = 0
-        for _, child in pairs(LeftColumn:GetChildren()) do
-            if child:IsA("Frame") then
-                leftSize = leftSize + child.AbsoluteSize.Y + 10
+            local debounce = false
+            local function UpdateColumnSize()
+                if debounce then return end
+                debounce = true
+                
+                task.defer(function()
+                    local leftSize = 0
+                    for _, child in pairs(LeftColumn:GetChildren()) do
+                        if child:IsA("Frame") then
+                            leftSize = leftSize + child.AbsoluteSize.Y + 10
+                        end
+                    end
+
+                    local rightSize = 0
+                    for _, child in pairs(RightColumn:GetChildren()) do
+                        if child:IsA("Frame") then
+                            rightSize = rightSize + child.AbsoluteSize.Y + 10
+                        end
+                    end
+
+                    local newSize = math.max(leftSize, rightSize) + 20
+                    if math.abs(ContentScroll.CanvasSize.Y.Offset - newSize) > 1 then
+                        ContentScroll.CanvasSize = UDim2.new(0, 0, 0, newSize)
+                    end
+                    
+                    debounce = false
+                end)
             end
-        end
 
-        local rightSize = 0
-        for _, child in pairs(RightColumn:GetChildren()) do
-            if child:IsA("Frame") then
-                rightSize = rightSize + child.AbsoluteSize.Y + 10
-            end
-        end
-
-        local newSize = math.max(leftSize, rightSize) + 20
-        if math.abs(ContentScroll.CanvasSize.Y.Offset - newSize) > 1 then
-            ContentScroll.CanvasSize = UDim2.new(0, 0, 0, newSize)
-        end
-        
-        debounce = false
-    end)
-end
-
-SectionContent:GetPropertyChangedSignal("AbsoluteSize"):Connect(UpdateColumnSize)
-
+            SectionContent:GetPropertyChangedSignal("AbsoluteSize"):Connect(UpdateColumnSize)
 
             function Section:CreateToggle(config)
                 local Toggle = {}
@@ -853,7 +848,7 @@ SectionContent:GetPropertyChangedSignal("AbsoluteSize"):Connect(UpdateColumnSize
                     Size = UDim2.new(0, 20, 1, 0),
                     Position = UDim2.new(1, -25, 0, 0),
                     BackgroundTransparency = 1,
-                    Text = "▼",
+                    Text = "v",
                     TextColor3 = Theme.TextDark,
                     TextSize = 10,
                     Font = Enum.Font.Gotham,
@@ -1196,7 +1191,7 @@ SectionContent:GetPropertyChangedSignal("AbsoluteSize"):Connect(UpdateColumnSize
 
                 ButtonFrame.MouseButton1Click:Connect(function()
                     Tween(ButtonFrame, {BackgroundColor3 = Theme.AccentDark}, 0.1)
-                    wait(0.1)
+                    task.wait(0.1)
                     Tween(ButtonFrame, {BackgroundColor3 = Theme.Accent}, 0.1)
                     callback()
                 end)
@@ -1570,10 +1565,10 @@ function SenseUI:Notify(config)
 
     Tween(NotifyFrame, {Position = UDim2.new(1, -290, 1, -80)}, 0.3, Enum.EasingStyle.Quart)
 
-    spawn(function()
-        wait(duration)
+    task.spawn(function()
+        task.wait(duration)
         Tween(NotifyFrame, {Position = UDim2.new(1, 300, 1, -80)}, 0.3, Enum.EasingStyle.Quart)
-        wait(0.3)
+        task.wait(0.3)
         NotifyFrame:Destroy()
     end)
 end
