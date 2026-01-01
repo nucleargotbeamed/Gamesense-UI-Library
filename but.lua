@@ -1,212 +1,189 @@
--- skeetui.lua | Gamesense-style UI Library for Roblox
--- https://github.com/YOURUSERNAME/YOURREPO/blob/main/skeetui.luaa
+-- Gamesense UI Library Example
+-- This demonstrates how to use the Gamesense UI Library
 
-local SkeetUI = {}
-local TweenService = game:GetService("TweenService")
-local HttpService = game:GetService("HttpService")
+-- Load the UI library
+local Gamesense = loadstring(game:HttpGet("https://raw.githubusercontent.com/yourusername/gamesense-ui/main/gamesense_ui_library.lua"))()
 
--- Config
-local GUI_NAME = "GamesenseUI"
-local THEME = {
-    Background = Color3.fromRGB(24, 24, 24),
-    TabBackground = Color3.fromRGB(35, 35, 35),
-    Accent = Color3.fromRGB(0, 150, 255),
-    Text = Color3.fromRGB(255, 255, 255),
-    Font = Enum.Font.Code,
-    TextSize = 14
-}
+-- Initialize the UI
+Gamesense:Init()
 
--- Utility
-local function create(class, props)
-    local obj = Instance.new(class)
-    for k, v in pairs(props) do
-        obj[k] = v
+-- Create tabs
+local legitTab = Gamesense:CreateTab("Legit")
+local rageTab = Gamesense:CreateTab("Rage")
+local visualsTab = Gamesense:CreateTab("Visuals")
+local miscTab = Gamesense:CreateTab("Misc")
+local skinsTab = Gamesense:CreateTab("Skins")
+local configTab = Gamesense:CreateTab("Config")
+
+-- LEGIT TAB COMPONENTS
+-- Aimbot Section
+Gamesense:CreateButton(legitTab, "Aimbot", function()
+    print("Aimbot clicked")
+end)
+
+Gamesense:CreateToggle(legitTab, "Enable Aimbot", false, function(state)
+    print("Aimbot:", state)
+end)
+
+Gamesense:CreateSlider(legitTab, "Smoothness", 1, 100, 50, function(value)
+    print("Smoothness:", value)
+end)
+
+Gamesense:CreateSlider(legitTab, "FOV", 1, 360, 90, function(value)
+    print("FOV:", value)
+end)
+
+Gamesense:CreateToggle(legitTab, "Visible Check", true, function(state)
+    print("Visible Check:", state)
+end)
+
+Gamesense:CreateToggle(legitTab, "Team Check", true, function(state)
+    print("Team Check:", state)
+end)
+
+Gamesense:CreateKeybind(legitTab, "Aimbot Key", Enum.KeyCode.E, function(key)
+    print("Aimbot Key set to:", key.Name)
+end)
+
+-- RAGE TAB COMPONENTS
+Gamesense:CreateToggle(rageTab, "Enable Ragebot", false, function(state)
+    print("Ragebot:", state)
+end)
+
+Gamesense:CreateToggle(rageTab, "Auto Shoot", false, function(state)
+    print("Auto Shoot:", state)
+end)
+
+Gamesense:CreateToggle(rageTab, "Auto Scope", false, function(state)
+    print("Auto Scope:", state)
+end)
+
+Gamesense:CreateSlider(rageTab, "Hitchance", 0, 100, 80, function(value)
+    print("Hitchance:", value)
+end)
+
+Gamesense:CreateSlider(rageTab, "Damage", 0, 100, 30, function(value)
+    print("Minimum Damage:", value)
+end)
+
+Gamesense:CreateToggle(rageTab, "Body Aim", false, function(state)
+    print("Body Aim:", state)
+end)
+
+Gamesense:CreateToggle(rageTab, "Silent Aim", true, function(state)
+    print("Silent Aim:", state)
+end)
+
+-- VISUALS TAB COMPONENTS
+Gamesense:CreateToggle(visualsTab, "Enable ESP", false, function(state)
+    print("ESP:", state)
+end)
+
+Gamesense:CreateToggle(visualsTab, "Box ESP", false, function(state)
+    print("Box ESP:", state)
+end)
+
+Gamesense:CreateToggle(visualsTab, "Name ESP", true, function(state)
+    print("Name ESP:", state)
+end)
+
+Gamesense:CreateToggle(visualsTab, "Health ESP", true, function(state)
+    print("Health ESP:", state)
+end)
+
+Gamesense:CreateToggle(visualsTab, "Skeleton ESP", false, function(state)
+    print("Skeleton ESP:", state)
+end)
+
+Gamesense:CreateSlider(visualsTab, "ESP Distance", 100, 5000, 2000, function(value)
+    print("ESP Distance:", value)
+end)
+
+Gamesense:CreateToggle(visualsTab, "Chams", false, function(state)
+    print("Chams:", state)
+end)
+
+Gamesense:CreateButton(visualsTab, "Reset Visuals", function()
+    print("Reset Visuals clicked")
+end)
+
+-- MISC TAB COMPONENTS
+Gamesense:CreateToggle(miscTab, "Bunny Hop", false, function(state)
+    print("Bunny Hop:", state)
+end)
+
+Gamesense:CreateToggle(miscTab, "Auto Jump", false, function(state)
+    print("Auto Jump:", state)
+end)
+
+Gamesense:CreateToggle(miscTab, "Auto Strafe", false, function(state)
+    print("Auto Strafe:", state)
+end)
+
+Gamesense:CreateToggle(miscTab, "Radar Hack", false, function(state)
+    print("Radar Hack:", state)
+end)
+
+Gamesense:CreateToggle(miscTab, "No Flash", false, function(state)
+    print("No Flash:", state)
+end)
+
+Gamesense:CreateToggle(miscTab, "No Smoke", false, function(state)
+    print("No Smoke:", state)
+end)
+
+Gamesense:CreateKeybind(miscTab, "Panic Key", Enum.KeyCode.Insert, function(key)
+    print("Panic Key set to:", key.Name)
+end)
+
+Gamesense:CreateSlider(miscTab, "Viewmodel FOV", 50, 150, 90, function(value)
+    print("Viewmodel FOV:", value)
+end)
+
+-- SKINS TAB COMPONENTS
+Gamesense:CreateButton(skinsTab, "Load Skins", function()
+    print("Load Skins clicked")
+end)
+
+Gamesense:CreateToggle(skinsTab, "Auto Update", true, function(state)
+    print("Auto Update Skins:", state)
+end)
+
+Gamesense:CreateButton(skinsTab, "Refresh Inventory", function()
+    print("Refresh Inventory clicked")
+end)
+
+Gamesense:CreateButton(skinsTab, "Save Config", function()
+    print("Save Skin Config clicked")
+end)
+
+-- CONFIG TAB COMPONENTS
+Gamesense:CreateButton(configTab, "Save Config", function()
+    print("Save Config clicked")
+end)
+
+Gamesense:CreateButton(configTab, "Load Config", function()
+    print("Load Config clicked")
+end)
+
+Gamesense:CreateButton(configTab, "Reset Config", function()
+    print("Reset Config clicked")
+end)
+
+Gamesense:CreateButton(configTab, "Export Config", function()
+    print("Export Config clicked")
+end)
+
+Gamesense:CreateButton(configTab, "Import Config", function()
+    print("Import Config clicked")
+end)
+
+-- Toggle UI with Insert key
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed and input.KeyCode == Enum.KeyCode.Insert then
+        Gamesense:Toggle()
     end
-    return obj
-end
+end)
 
--- Main GUI
-function SkeetUI:CreateWindow(title)
-    local ScreenGui = create("ScreenGui", {
-        Name = GUI_NAME,
-        Parent = game:GetService("CoreGui"),
-        ResetOnSpawn = false
-    })
-
-    local Main = create("Frame", {
-        Name = "Main",
-        Size = UDim2.new(0, 600, 0, 400),
-        Position = UDim2.new(0.5, -300, 0.5, -200),
-        BackgroundColor3 = THEME.Background,
-        BorderSizePixel = 0,
-        Parent = ScreenGui
-    })
-
-    local TopBar = create("Frame", {
-        Name = "TopBar",
-        Size = UDim2.new(1, 0, 0, 30),
-        BackgroundColor3 = THEME.TabBackground,
-        BorderSizePixel = 0,
-        Parent = Main
-    })
-
-    local Title = create("TextLabel", {
-        Name = "Title",
-        Size = UDim2.new(1, -10, 1, 0),
-        Position = UDim2.new(0, 10, 0, 0),
-        Text = title or "gamesense",
-        TextColor3 = THEME.Text,
-        BackgroundTransparency = 1,
-        Font = THEME.Font,
-        TextSize = THEME.TextSize,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Parent = TopBar
-    })
-
-    local TabHolder = create("Frame", {
-        Name = "TabHolder",
-        Size = UDim2.new(0, 150, 1, -30),
-        Position = UDim2.new(0, 0, 0, 30),
-        BackgroundColor3 = THEME.TabBackground,
-        BorderSizePixel = 0,
-        Parent = Main
-    })
-
-    local Container = create("Frame", {
-        Name = "Container",
-        Size = UDim2.new(1, -150, 1, -30),
-        Position = UDim2.new(0, 150, 0, 30),
-        BackgroundTransparency = 1,
-        Parent = Main
-    })
-
-    local window = {
-        ScreenGui = ScreenGui,
-        Main = Main,
-        TabHolder = TabHolder,
-        Container = Container,
-        Tabs = {},
-        CurrentTab = nil
-    }
-
-    -- Dragging
-    local dragging, dragInput, dragStart, startPos
-    TopBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = Main.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
-    end)
-
-    TopBar.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then
-            dragInput = input
-        end
-    end)
-
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
-        if dragging and input == dragInput then
-            local delta = input.Position - dragStart
-            Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-
-    return window
-end
-
-function SkeetUI:CreateTab(window, name)
-    local TabButton = create("TextButton", {
-        Name = name,
-        Size = UDim2.new(1, -10, 0, 30),
-        Position = UDim2.new(0, 5, 0, #window.Tabs * 35),
-        Text = name,
-        TextColor3 = THEME.Text,
-        BackgroundColor3 = THEME.TabBackground,
-        BorderSizePixel = 0,
-        Font = THEME.Font,
-        TextSize = THEME.TextSize,
-        Parent = window.TabHolder
-    })
-
-    local TabFrame = create("ScrollingFrame", {
-        Name = name,
-        Size = UDim2.new(1, -10, 1, -10),
-        Position = UDim2.new(0, 5, 0, 5),
-        BackgroundTransparency = 1,
-        ScrollBarThickness = 0,
-        Visible = false,
-        Parent = window.Container
-    })
-
-    local UIListLayout = create("UIListLayout", {
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        Padding = UDim.new(0, 5),
-        Parent = TabFrame
-    })
-
-    table.insert(window.Tabs, {Button = TabButton, Frame = TabFrame})
-
-    TabButton.MouseButton1Click:Connect(function()
-        for _, tab in ipairs(window.Tabs) do
-            tab.Frame.Visible = false
-            tab.Button.BackgroundColor3 = THEME.TabBackground
-        end
-        TabFrame.Visible = true
-        TabButton.BackgroundColor3 = THEME.Accent
-    end)
-
-    if not window.CurrentTab then
-        TabFrame.Visible = true
-        TabButton.BackgroundColor3 = THEME.Accent
-        window.CurrentTab = TabFrame
-    end
-
-    return TabFrame
-end
-
-function SkeetUI:CreateToggle(tab, text, callback)
-    local Toggle = create("TextButton", {
-        Size = UDim2.new(1, -10, 0, 25),
-        Text = text .. " [OFF]",
-        TextColor3 = THEME.Text,
-        BackgroundColor3 = Color3.fromRGB(45, 45, 45),
-        Font = THEME.Font,
-        TextSize = THEME.TextSize,
-        Parent = tab
-    })
-
-    local enabled = false
-    Toggle.MouseButton1Click:Connect(function()
-        enabled = not enabled
-        Toggle.Text = text .. (enabled and " [ON]" or " [OFF]")
-        if callback then callback(enabled) end
-    end)
-
-    return Toggle
-end
-
-function SkeetUI:CreateButton(tab, text, callback)
-    local Button = create("TextButton", {
-        Size = UDim2.new(1, -10, 0, 25),
-        Text = text,
-        TextColor3 = THEME.Text,
-        BackgroundColor3 = Color3.fromRGB(45, 45, 45),
-        Font = THEME.Font,
-        TextSize = THEME.TextSize,
-        Parent = tab
-    })
-
-    Button.MouseButton1Click:Connect(function()
-        if callback then callback() end
-    end)
-
-    return Button
-end
-
-return SkeetUI
+print("Gamesense UI Loaded Successfully!")
+print("Press INSERT to toggle the UI")
