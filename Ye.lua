@@ -1,5 +1,5 @@
 -- skeetui.lua | Gamesense-style UI Library for Roblox
--- https://github.com/YOURUSERNAME/YOURREPO/blob/main/skeetui.lua
+-- https://github.com/YOURUSERNAME/YOURREPO/blob/main/skeetui.luaa
 
 local SkeetUI = {}
 local TweenService = game:GetService("TweenService")
