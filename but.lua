@@ -1,34 +1,46 @@
--- Gamesense UI Library for Roblox
+-- Gamesense UI Library v2 for Roblox
+-- Authentic recreation with rainbow bar and green accents
 -- Author: Gamesense UI Remake
--- Version: 1.0
+-- Version: 2.0
 
 local Gamesense = {
-    Name = "Gamesense UI Library",
-    Version = "1.0",
+    Name = "Gamesense UI Library v2",
+    Version = "2.0",
     Tabs = {},
     ActiveTab = nil,
     UI = nil,
     MainFrame = nil,
     TabButtons = {},
     Components = {},
-    Initialized = false
+    Initialized = false,
+    RainbowBar = nil,
+    RainbowGradient = nil
 }
 
--- Color scheme matching Gamesense aesthetic
+-- Authentic Gamesense color scheme
 local Colors = {
-    Background = Color3.fromRGB(15, 15, 15),
-    Secondary = Color3.fromRGB(25, 25, 25),
-    Accent = Color3.fromRGB(128, 0, 255),
-    AccentHover = Color3.fromRGB(148, 20, 275),
+    Background = Color3.fromRGB(10, 10, 10),
+    Secondary = Color3.fromRGB(20, 20, 20),
+    Accent = Color3.fromRGB(0, 255, 0),        -- Gamesense green
+    AccentHover = Color3.fromRGB(0, 200, 0),   -- Darker green
     Text = Color3.fromRGB(255, 255, 255),
     TextSecondary = Color3.fromRGB(180, 180, 180),
-    Border = Color3.fromRGB(40, 40, 40),
-    ToggleOn = Color3.fromRGB(128, 0, 255),
+    Border = Color3.fromRGB(30, 30, 30),
+    ToggleOn = Color3.fromRGB(0, 255, 0),      -- Green
     ToggleOff = Color3.fromRGB(60, 60, 60),
-    SliderFill = Color3.fromRGB(128, 0, 255),
+    SliderFill = Color3.fromRGB(0, 255, 0),    -- Green
     SliderBackground = Color3.fromRGB(40, 40, 40),
-    ButtonHover = Color3.fromRGB(35, 35, 35),
-    ButtonClick = Color3.fromRGB(50, 50, 50)
+    ButtonHover = Color3.fromRGB(30, 30, 30),
+    ButtonClick = Color3.fromRGB(45, 45, 45),
+    Rainbow = {
+        Color3.fromRGB(255, 0, 0),     -- Red
+        Color3.fromRGB(255, 127, 0),   -- Orange
+        Color3.fromRGB(255, 255, 0),   -- Yellow
+        Color3.fromRGB(0, 255, 0),     -- Green
+        Color3.fromRGB(0, 0, 255),     -- Blue
+        Color3.fromRGB(75, 0, 130),    -- Indigo
+        Color3.fromRGB(148, 0, 211)    -- Violet
+    }
 }
 
 -- Services
@@ -93,13 +105,43 @@ local function MakeDraggable(frame)
     end)
 end
 
+-- Create rainbow gradient
+local function CreateRainbowGradient(parent)
+    local gradient = Create("UIGradient", {
+        Parent = parent,
+        Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, Colors.Rainbow[1]),
+            ColorSequenceKeypoint.new(0.17, Colors.Rainbow[2]),
+            ColorSequenceKeypoint.new(0.33, Colors.Rainbow[3]),
+            ColorSequenceKeypoint.new(0.5, Colors.Rainbow[4]),
+            ColorSequenceKeypoint.new(0.67, Colors.Rainbow[5]),
+            ColorSequenceKeypoint.new(0.83, Colors.Rainbow[6]),
+            ColorSequenceKeypoint.new(1, Colors.Rainbow[7])
+        })
+    })
+    
+    -- Animate rainbow effect
+    local offset = 0
+    local connection
+    connection = RunService.Heartbeat:Connect(function(deltaTime)
+        if gradient.Parent then
+            offset = (offset + deltaTime * 0.5) % 1
+            gradient.Offset = Vector2.new(offset, 0)
+        else
+            connection:Disconnect()
+        end
+    end)
+    
+    return gradient
+end
+
 -- Main UI Creation
 function Gamesense:Init()
     if self.Initialized then return end
 
     -- Create ScreenGui
     self.UI = Create("ScreenGui", {
-        Name = "GamesenseUI",
+        Name = "GamesenseUIv2",
         Parent = game:GetService("CoreGui"),
         ResetOnSpawn = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -109,8 +151,8 @@ function Gamesense:Init()
     self.MainFrame = Create("Frame", {
         Name = "MainFrame",
         Parent = self.UI,
-        Size = UDim2.new(0, 600, 0, 400),
-        Position = UDim2.new(0.5, -300, 0.5, -200),
+        Size = UDim2.new(0, 650, 0, 450),
+        Position = UDim2.new(0.5, -325, 0.5, -225),
         BackgroundColor3 = Colors.Background,
         BorderSizePixel = 0,
         ClipsDescendants = true
@@ -119,8 +161,20 @@ function Gamesense:Init()
     -- Add corner radius
     local corner = Create("UICorner", {
         Parent = self.MainFrame,
-        CornerRadius = UDim.new(0, 6)
+        CornerRadius = UDim.new(0, 4)
     })
+
+    -- Rainbow Bar at top (authentic Gamesense feature)
+    self.RainbowBar = Create("Frame", {
+        Name = "RainbowBar",
+        Parent = self.MainFrame,
+        Size = UDim2.new(1, 0, 0, 3),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+        BorderSizePixel = 0
+    })
+
+    self.RainbowGradient = CreateRainbowGradient(self.RainbowBar)
 
     -- Add stroke for border
     local stroke = Create("UIStroke", {
@@ -133,13 +187,13 @@ function Gamesense:Init()
     local titleBar = Create("Frame", {
         Name = "TitleBar",
         Parent = self.MainFrame,
-        Size = UDim2.new(1, 0, 0, 30),
-        Position = UDim2.new(0, 0, 0, 0),
+        Size = UDim2.new(1, 0, 0, 28),
+        Position = UDim2.new(0, 0, 0, 3),
         BackgroundColor3 = Colors.Secondary,
         BorderSizePixel = 0
     })
 
-    -- Title Label
+    -- Title Label (gamesense text)
     local titleLabel = Create("TextLabel", {
         Name = "TitleLabel",
         Parent = titleBar,
@@ -148,7 +202,7 @@ function Gamesense:Init()
         BackgroundTransparency = 1,
         Text = "gamesense",
         TextColor3 = Colors.Text,
-        TextSize = 14,
+        TextSize = 13,
         Font = Enum.Font.Code,
         TextXAlignment = Enum.TextXAlignment.Left
     })
@@ -157,8 +211,8 @@ function Gamesense:Init()
     local tabFrame = Create("Frame", {
         Name = "TabFrame",
         Parent = self.MainFrame,
-        Size = UDim2.new(0, 120, 1, -30),
-        Position = UDim2.new(0, 0, 0, 30),
+        Size = UDim2.new(0, 130, 1, -31),
+        Position = UDim2.new(0, 0, 0, 31),
         BackgroundColor3 = Colors.Secondary,
         BorderSizePixel = 0
     })
@@ -167,8 +221,8 @@ function Gamesense:Init()
     local contentFrame = Create("Frame", {
         Name = "ContentFrame",
         Parent = self.MainFrame,
-        Size = UDim2.new(1, -120, 1, -30),
-        Position = UDim2.new(0, 120, 0, 30),
+        Size = UDim2.new(1, -130, 1, -31),
+        Position = UDim2.new(0, 130, 0, 31),
         BackgroundColor3 = Colors.Background,
         BorderSizePixel = 0
     })
@@ -195,7 +249,7 @@ function Gamesense:Init()
     self.TabLayout = Create("UIListLayout", {
         Parent = self.TabContainer,
         SortOrder = Enum.SortOrder.LayoutOrder,
-        Padding = UDim.new(0, 5),
+        Padding = UDim.new(0, 4),
         FillDirection = Enum.FillDirection.Vertical
     })
 
@@ -222,7 +276,7 @@ function Gamesense:CreateTab(name)
     tab.Button = Create("TextButton", {
         Name = name .. "Tab",
         Parent = self.TabContainer,
-        Size = UDim2.new(1, 0, 0, 25),
+        Size = UDim2.new(1, 0, 0, 26),
         BackgroundColor3 = Colors.Secondary,
         BorderSizePixel = 0,
         Text = name,
@@ -234,7 +288,7 @@ function Gamesense:CreateTab(name)
 
     local tabCorner = Create("UICorner", {
         Parent = tab.Button,
-        CornerRadius = UDim.new(0, 4)
+        CornerRadius = UDim.new(0, 3)
     })
 
     -- Create Content Frame for this tab
@@ -250,7 +304,7 @@ function Gamesense:CreateTab(name)
     tab.ComponentLayout = Create("UIListLayout", {
         Parent = tab.Frame,
         SortOrder = Enum.SortOrder.LayoutOrder,
-        Padding = UDim.new(0, 8),
+        Padding = UDim.new(0, 6),
         FillDirection = Enum.FillDirection.Vertical
     })
 
@@ -305,7 +359,7 @@ function Gamesense:CreateButton(tab, text, callback)
     local button = Create("TextButton", {
         Name = text .. "Button",
         Parent = tab.Frame,
-        Size = UDim2.new(1, 0, 0, 30),
+        Size = UDim2.new(1, 0, 0, 28),
         BackgroundColor3 = Colors.Secondary,
         BorderSizePixel = 0,
         Text = text,
@@ -317,7 +371,7 @@ function Gamesense:CreateButton(tab, text, callback)
 
     local buttonCorner = Create("UICorner", {
         Parent = button,
-        CornerRadius = UDim.new(0, 4)
+        CornerRadius = UDim.new(0, 3)
     })
 
     button.MouseButton1Click:Connect(callback)
@@ -342,7 +396,7 @@ function Gamesense:CreateButton(tab, text, callback)
     return button
 end
 
--- Toggle Component
+-- Toggle Component (Green style for ESP)
 function Gamesense:CreateToggle(tab, text, default, callback)
     callback = callback or function() end
     default = default or false
@@ -350,7 +404,7 @@ function Gamesense:CreateToggle(tab, text, default, callback)
     local toggleFrame = Create("Frame", {
         Name = text .. "Toggle",
         Parent = tab.Frame,
-        Size = UDim2.new(1, 0, 0, 30),
+        Size = UDim2.new(1, 0, 0, 28),
         BackgroundColor3 = Colors.Secondary,
         BorderSizePixel = 0,
         LayoutOrder = #tab.Components + 1
@@ -358,13 +412,13 @@ function Gamesense:CreateToggle(tab, text, default, callback)
 
     local toggleCorner = Create("UICorner", {
         Parent = toggleFrame,
-        CornerRadius = UDim.new(0, 4)
+        CornerRadius = UDim.new(0, 3)
     })
 
     local label = Create("TextLabel", {
         Name = "Label",
         Parent = toggleFrame,
-        Size = UDim2.new(1, -50, 1, 0),
+        Size = UDim2.new(1, -55, 1, 0),
         Position = UDim2.new(0, 10, 0, 0),
         BackgroundTransparency = 1,
         Text = text,
@@ -377,29 +431,29 @@ function Gamesense:CreateToggle(tab, text, default, callback)
     local toggleButton = Create("Frame", {
         Name = "ToggleButton",
         Parent = toggleFrame,
-        Size = UDim2.new(0, 40, 0, 20),
-        Position = UDim2.new(1, -45, 0.5, -10),
+        Size = UDim2.new(0, 45, 0, 18),
+        Position = UDim2.new(1, -50, 0.5, -9),
         BackgroundColor3 = default and Colors.ToggleOn or Colors.ToggleOff,
         BorderSizePixel = 0
     })
 
     local toggleButtonCorner = Create("UICorner", {
         Parent = toggleButton,
-        CornerRadius = UDim.new(0, 10)
+        CornerRadius = UDim.new(0, 9)
     })
 
     local toggleIndicator = Create("Frame", {
         Name = "Indicator",
         Parent = toggleButton,
-        Size = UDim2.new(0, 16, 0, 16),
-        Position = UDim2.new(0, default and 22 or 2, 0, 2),
+        Size = UDim2.new(0, 14, 0, 14),
+        Position = UDim2.new(0, default and 28 or 2, 0, 2),
         BackgroundColor3 = Colors.Text,
         BorderSizePixel = 0
     })
 
     local indicatorCorner = Create("UICorner", {
         Parent = toggleIndicator,
-        CornerRadius = UDim.new(0, 8)
+        CornerRadius = UDim.new(0, 7)
     })
 
     local state = default
@@ -408,7 +462,7 @@ function Gamesense:CreateToggle(tab, text, default, callback)
         state = not state
         
         Tween(toggleButton, {BackgroundColor3 = state and Colors.ToggleOn or Colors.ToggleOff}, 0.2)
-        Tween(toggleIndicator, {Position = UDim2.new(0, state and 22 or 2, 0, 2)}, 0.2)
+        Tween(toggleIndicator, {Position = UDim2.new(0, state and 28 or 2, 0, 2)}, 0.2)
         
         callback(state)
     end)
@@ -417,7 +471,7 @@ function Gamesense:CreateToggle(tab, text, default, callback)
     return {Frame = toggleFrame, State = state, SetState = function(self, newState) 
         state = newState
         Tween(toggleButton, {BackgroundColor3 = state and Colors.ToggleOn or Colors.ToggleOff}, 0.2)
-        Tween(toggleIndicator, {Position = UDim2.new(0, state and 22 or 2, 0, 2)}, 0.2)
+        Tween(toggleIndicator, {Position = UDim2.new(0, state and 28 or 2, 0, 2)}, 0.2)
     end}
 end
 
@@ -431,7 +485,7 @@ function Gamesense:CreateSlider(tab, text, min, max, default, callback)
     local sliderFrame = Create("Frame", {
         Name = text .. "Slider",
         Parent = tab.Frame,
-        Size = UDim2.new(1, 0, 0, 45),
+        Size = UDim2.new(1, 0, 0, 42),
         BackgroundColor3 = Colors.Secondary,
         BorderSizePixel = 0,
         LayoutOrder = #tab.Components + 1
@@ -439,14 +493,14 @@ function Gamesense:CreateSlider(tab, text, min, max, default, callback)
 
     local sliderCorner = Create("UICorner", {
         Parent = sliderFrame,
-        CornerRadius = UDim.new(0, 4)
+        CornerRadius = UDim.new(0, 3)
     })
 
     local label = Create("TextLabel", {
         Name = "Label",
         Parent = sliderFrame,
-        Size = UDim2.new(1, -10, 0, 20),
-        Position = UDim2.new(0, 10, 0, 5),
+        Size = UDim2.new(1, -10, 0, 18),
+        Position = UDim2.new(0, 10, 0, 4),
         BackgroundTransparency = 1,
         Text = text .. ": " .. tostring(default),
         TextColor3 = Colors.Text,
@@ -459,7 +513,7 @@ function Gamesense:CreateSlider(tab, text, min, max, default, callback)
         Name = "SliderTrack",
         Parent = sliderFrame,
         Size = UDim2.new(1, -20, 0, 6),
-        Position = UDim2.new(0, 10, 0, 25),
+        Position = UDim2.new(0, 10, 0, 22),
         BackgroundColor3 = Colors.SliderBackground,
         BorderSizePixel = 0
     })
@@ -485,15 +539,15 @@ function Gamesense:CreateSlider(tab, text, min, max, default, callback)
     local sliderHandle = Create("Frame", {
         Name = "SliderHandle",
         Parent = sliderTrack,
-        Size = UDim2.new(0, 12, 0, 12),
-        Position = UDim2.new((default - min) / (max - min), -6, 0, -3),
+        Size = UDim2.new(0, 10, 0, 10),
+        Position = UDim2.new((default - min) / (max - min), -5, 0, -2),
         BackgroundColor3 = Colors.Text,
         BorderSizePixel = 0
     })
 
     local handleCorner = Create("UICorner", {
         Parent = sliderHandle,
-        CornerRadius = UDim.new(0, 6)
+        CornerRadius = UDim.new(0, 5)
     })
 
     local value = default
@@ -505,7 +559,7 @@ function Gamesense:CreateSlider(tab, text, min, max, default, callback)
         
         label.Text = text .. ": " .. tostring(math.floor(value))
         Tween(sliderFill, {Size = UDim2.new(percent, 0, 1, 0)}, 0.1)
-        Tween(sliderHandle, {Position = UDim2.new(percent, -6, 0, -3)}, 0.1)
+        Tween(sliderHandle, {Position = UDim2.new(percent, -5, 0, -2)}, 0.1)
         
         callback(value)
     end
@@ -547,7 +601,7 @@ function Gamesense:CreateKeybind(tab, text, default, callback)
     local keybindFrame = Create("Frame", {
         Name = text .. "Keybind",
         Parent = tab.Frame,
-        Size = UDim2.new(1, 0, 0, 30),
+        Size = UDim2.new(1, 0, 0, 28),
         BackgroundColor3 = Colors.Secondary,
         BorderSizePixel = 0,
         LayoutOrder = #tab.Components + 1
@@ -555,13 +609,13 @@ function Gamesense:CreateKeybind(tab, text, default, callback)
 
     local keybindCorner = Create("UICorner", {
         Parent = keybindFrame,
-        CornerRadius = UDim.new(0, 4)
+        CornerRadius = UDim.new(0, 3)
     })
 
     local label = Create("TextLabel", {
         Name = "Label",
         Parent = keybindFrame,
-        Size = UDim2.new(1, -80, 1, 0),
+        Size = UDim2.new(1, -85, 1, 0),
         Position = UDim2.new(0, 10, 0, 0),
         BackgroundTransparency = 1,
         Text = text,
@@ -574,8 +628,8 @@ function Gamesense:CreateKeybind(tab, text, default, callback)
     local keybindButton = Create("TextButton", {
         Name = "KeybindButton",
         Parent = keybindFrame,
-        Size = UDim2.new(0, 60, 0, 20),
-        Position = UDim2.new(1, -65, 0.5, -10),
+        Size = UDim2.new(0, 70, 0, 18),
+        Position = UDim2.new(1, -75, 0.5, -9),
         BackgroundColor3 = Colors.Background,
         BorderSizePixel = 0,
         Text = default.Name ~= "Unknown" and default.Name or "NONE",
